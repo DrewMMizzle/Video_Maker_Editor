@@ -1,0 +1,370 @@
+Title: Build a simple drag-and-drop LinkedIn video post editor (React + Konva) with brand import from URL
+
+Goal:
+A super-simple, browser-first editor to assemble a 15–45s square video for LinkedIn using text, uploaded images, and icons—easier than Canva. Support drag/resize/rotate, scene (“pane”) management, color & font controls, brand import from my landing-page URL, and export to WebM (plus PNGs per pane). No external backend or DB; persist locally.
+
+Tech stack
+
+Frontend: Vite + React + TypeScript
+
+UI: Tailwind CSS + shadcn/ui, lucide-react icons
+
+Canvas: react-konva (Konva Stage/Layers + Transformer)
+
+State: Zustand
+
+DnD lists: @dnd-kit/core (for panes & layer reordering)
+
+Fonts: @fontsource (Inter, Roboto, Playfair Display) + on-the-fly <link> injection when needed
+
+Export: HTMLCanvasElement.captureStream() + MediaRecorder → WebM; PNG via stage.toDataURL()
+
+Persistence: localStorage + JSON import/export
+
+Brand import (server in same Replit): Node + Express + Playwright (Chromium) + JSDOM + node-vibrant for palette extraction
+Fallback when Playwright not available: HTML fetch + CSS var/theme-color parsing only.
+
+Core features (MVP)
+
+Canvas presets
+
+Default 1080×1080 (square). Aspect dropdown: 1080×1920, 1920×1080, 1200×675.
+
+Safe-area overlay toggle.
+
+Panes (scenes)
+
+Left sidebar strip with thumbnails & durations.
+
+Add / Duplicate / Delete / Reorder (drag).
+
+Per-pane duration (1–10s, default 3s). Pane background color.
+
+Elements
+
+Add Text, Image (upload), Icon (lucide name).
+
+On-canvas drag, resize, rotate; z-index up/down; opacity.
+
+Snapping to centers; Shift to preserve aspect.
+
+Properties panel (contextual on selection):
+
+Text: content, font family, size, weight, line height, color, align, padding, background toggle, opacity.
+
+Image: replace, width/height (scale), corner radius, opacity.
+
+Icon: name (search), size, stroke width, color, opacity.
+
+Branding quick-set
+
+Palette swatches (primary/secondary/accent/background) editable.
+
+Font pairing presets (e.g., Inter + Playfair).
+
+Brand Import from URL: paste landing-page URL → extract palette & fonts (details below).
+
+Preview & Apply with Undo/Revert snackbar.
+
+Templates (starter layouts)
+
+Headline + Sub
+
+Quote Card
+
+Checklist
+(Each is just a pre-populated pane with styled text elements.)
+
+Export
+
+Video (WebM): Play panes in order for their durations; 500ms cross-fade between panes; record via MediaRecorder at ~30fps.
+
+Images: Export current pane as PNG; “Export all panes as ZIP”.
+
+Project save/load
+
+Auto-save to localStorage.
+
+Download Project (.json) and Load Project (.json).
+
+Brand import from URL (server + client)
+
+Endpoint: GET /api/brand/scrape?url=ENCODED_URL (Express)
+
+Server logic (Playwright best-effort with robust fallbacks):
+
+Launch Chromium (no-sandbox), navigate to URL, wait networkidle (≤15s).
+
+Collect:
+
+meta[name="theme-color"]
+
+CSS variables from :root (names like --primary, --secondary, --brand*, --color-*)
+
+Google Fonts links (fonts.googleapis.com) and any @font-face names.
+
+Computed font-family for body/main/p/h1–h3 → pick likely headings/body stacks.
+
+Likely brand images (favicon, logo) → request buffers → node-vibrant swatches.
+
+Full-page screenshot → vibrant quantization to broaden palette.
+
+Normalize hexes, dedupe, prefer non-grays, keep 6–8 diverse colors.
+
+Return JSON:
+
+{
+  "palette": ["#0A2540","#2B8CFF","#F5F7FA","#111827","#10B981"],
+  "fonts": {
+    "headings": "Inter, ...",
+    "body": "Inter, ...",
+    "sources": ["google-fonts: Inter@400;700"]
+  },
+  "evidence": {
+    "themeColor": "#0A2540",
+    "cssVars": ["--primary:#0A2540"],
+    "googleFonts": ["Inter"],
+    "imagesUsedForPalette": ["favicon.ico","logo.png"],
+    "screenshotUsed": true
+  }
+}
+
+
+Safeguards: validate URL (http/https), CORS allow client, timeout, partial results OK, respect robots where feasible.
+Fallback: if Playwright unavailable, fetch HTML; parse theme-color + CSS vars only.
+
+Client behavior:
+
+Brand tab → input + Import → shows preview swatches & font samples (H1 + paragraph) → Apply writes to store (brand.palette, brand.fonts) and injects <link> for Google Fonts if present; else suggest installing matching @fontsource/*.
+
+UI layout
+
+Top bar: New, Open JSON, Save JSON, Export Video, Export PNG, Settings (fonts), Aspect ratio dropdown.
+
+Left sidebar: Pane thumbnails + duration; +Add, Duplicate, Delete, Drag to reorder.
+
+Center: Konva Stage with safe-area toggle, keyboard shortcuts:
+
+Delete=remove, Ctrl/Cmd+C/V=clone, Arrows=nudge 1px, Shift+Arrows=10px.
+
+Right sidebar: Tabs → Properties (selected element) | Document (canvas size/bg) | Brand (palette, fonts, Import from URL).
+
+Data model (TypeScript)
+type RGBHex = `#${string}`;
+
+type ElementBase = {
+  id: string;
+  type: 'text'|'image'|'icon';
+  x: number; y: number; rotation: number; z: number; opacity: number;
+};
+
+type TextEl = ElementBase & {
+  type: 'text';
+  text: string;
+  fontFamily: string; fontSize: number; fontWeight: number|string;
+  lineHeight: number; color: RGBHex; align: 'left'|'center'|'right';
+  padding: number; bgColor?: RGBHex;
+};
+
+type ImageEl = ElementBase & {
+  type: 'image';
+  src: string; width: number; height: number; cornerRadius?: number;
+};
+
+type IconEl = ElementBase & {
+  type: 'icon';
+  name: string; size: number; strokeWidth: number; color: RGBHex;
+};
+
+type Pane = {
+  id: string; name: string; durationSec: number; bgColor: RGBHex;
+  elements: (TextEl|ImageEl|IconEl)[]; thumbnail?: string;
+};
+
+type Project = {
+  version: 'v1';
+  canvas: { width: number; height: number; background: RGBHex; };
+  brand: { palette: RGBHex[]; fonts: string[]; headings?: string; body?: string; };
+  panes: Pane[];
+  activePaneId?: string;
+};
+
+Implementation details
+
+Konva: single Stage; one Layer for background, one for elements; Konva Transformer for selection/resize/rotate.
+
+Thumbnails: offscreen Stage render → dataURL (debounced on changes).
+
+Fonts: ship Inter, Roboto, Playfair via @fontsource/*; dynamic <link> injection for Google Fonts from brand import.
+
+Color picker: shadcn/ui + native <input type="color">.
+
+Icons: searchable lucide name list; render via SVG path mapped to a Konva Path (or pre-rasterized to <Image> from dataURL).
+
+Video export:
+
+For each pane: set scene state; wait requestAnimationFrame; display for durationSec.
+
+Cross-fade: overlap two pane canvases or use opacity tween for 500ms.
+
+Capture with stageRef.toCanvas().captureStream(30); accumulate MediaRecorder chunks → Blob → download.
+
+Fallback message when MediaRecorder unsupported (export PNGs then stitch elsewhere).
+
+Files & structure
+/src
+  main.tsx
+  app.tsx
+  types.ts
+  store/useProject.ts
+  components/
+    TopBar.tsx
+    PaneStrip.tsx
+    StageCanvas.tsx
+    PropertiesPanel.tsx
+    BrandPanel.tsx
+    ColorSwatches.tsx
+    IconPicker.tsx
+  lib/
+    exportVideo.ts
+    exportImages.ts
+    thumbnails.ts
+    fonts.ts
+    icons.ts
+    persist.ts
+
+/server
+  index.ts
+  scrape.ts
+  colors.ts
+
+README.md
+
+Scripts & setup
+
+Install deps: Tailwind + shadcn/ui, Zustand, react-konva, @dnd-kit/core, lucide-react, @fontsource/*, express, playwright, jsdom, node-vibrant, concurrently, ts-node, zod (optional).
+
+Package.json scripts (add):
+
+{
+  "scripts": {
+    "dev": "concurrently \"vite\" \"ts-node server/index.ts\"",
+    "build": "vite build",
+    "preview": "vite preview --port 5173",
+    "postinstall": "playwright install chromium"
+  }
+}
+
+
+Server skeleton (implement fully):
+
+// server/index.ts
+import express from 'express';
+import cors from 'cors';
+import { scrapeBrand } from './scrape';
+
+const app = express();
+app.use(cors());
+
+app.get('/api/brand/scrape', async (req, res) => {
+  const url = String(req.query.url || '');
+  if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: 'Invalid URL' });
+  try { res.json(await scrapeBrand(url)); }
+  catch (e:any) { res.status(500).json({ error: e?.message || 'Failed to scrape brand' }); }
+});
+
+const PORT = process.env.PORT || 5174;
+app.listen(PORT, () => console.log(`Brand scraper running on :${PORT}`));
+
+// server/scrape.ts (outline)
+import { chromium } from 'playwright';
+import Vibrant from 'node-vibrant';
+import { extractCssVars, pickFonts, rankPalette, toHexes } from './colors';
+
+export async function scrapeBrand(url:string) {
+  const browser = await chromium.launch({ args: ['--no-sandbox'] });
+  const page = await browser.newPage();
+  await page.goto(url, { waitUntil: 'networkidle', timeout: 15000 });
+
+  const themeColor = await page.$eval('meta[name="theme-color"]', el => (el as HTMLMetaElement).content).catch(() => null);
+
+  const cssVars = await page.evaluate(() => {
+    const root = getComputedStyle(document.documentElement);
+    const vars:string[] = [];
+    for (let i=0;i<root.length;i++) {
+      const name = root[i];
+      if (name.startsWith('--')) vars.push(`${name}:${root.getPropertyValue(name).trim()}`);
+    }
+    return vars;
+  });
+
+  const fonts = await page.evaluate(() => {
+    const get = (sel:string) => (document.querySelector(sel) && getComputedStyle(document.querySelector(sel) as Element).fontFamily) || '';
+    const body = get('body') || get('main') || get('p');
+    const headings = get('h1') || get('h2') || get('h3') || body;
+    const googleFonts = Array.from(document.querySelectorAll('link[href*=\"fonts.googleapis.com\"]')).map(l => (l as HTMLLinkElement).href);
+    return { body, headings, googleFonts };
+  });
+
+  const images = await page.evaluate(() => {
+    const picks = new Set<string>();
+    const fav = document.querySelector('link[rel~=\"icon\"]') as HTMLLinkElement | null;
+    if (fav?.href) picks.add(fav.href);
+    const logo = document.querySelector('img[alt*=\"logo\" i], img[src*=\"logo\" i]') as HTMLImageElement | null;
+    if (logo?.src) picks.add(logo.src);
+    return Array.from(picks);
+  });
+
+  const imageColors:string[] = [];
+  for (const u of images) {
+    try {
+      const buf = await (await page.request.get(u)).body();
+      const pal = await Vibrant.from(buf).getPalette();
+      Object.values(pal).forEach(s => s && imageColors.push(s.getHex()));
+    } catch {}
+  }
+
+  const shot = await page.screenshot({ fullPage: true });
+  const pal = await Vibrant.from(shot).getPalette();
+  const screenshotColors = Object.values(pal).filter(Boolean).map(s => s!.getHex());
+
+  await browser.close();
+
+  const hexFromCss = toHexes([themeColor ?? '', ...extractCssVars(cssVars)]);
+  const palette = rankPalette([...hexFromCss, ...imageColors, ...screenshotColors]);
+
+  return {
+    palette,
+    fonts: { headings: pickFonts(fonts.headings), body: pickFonts(fonts.body), sources: fonts.googleFonts },
+    evidence: { themeColor, cssVars, googleFonts: fonts.googleFonts, imagesUsedForPalette: images, screenshotUsed: true }
+  };
+}
+
+
+Implement colors.ts helpers for hex parsing/dedupe/contrast ranking and pickFonts() normalization.
+
+Acceptance criteria
+
+Add/reorder/delete panes; set duration per pane.
+
+Add text/image/icon; drag/resize/rotate; edit properties in the right panel.
+
+Change canvas size, background, palette, and fonts.
+
+Brand import: pasting a valid URL yields 4–8 palette colors and heading/body font stacks; preview then apply (with Undo).
+
+Export a short WebM that plays all panes with cross-fades at specified durations.
+
+Export current pane as PNG; export all panes as ZIP.
+
+Project persists across refresh; can download/load .json.
+
+README (generate)
+
+Include: quick start, how to import a brand from URL, how to export video/PNGs, browser support notes (MediaRecorder/WebM), known limitations (e.g., some sites block scraping; use screenshot-upload fallback), and how to add more fonts/icons/templates.
+
+Style guidance
+
+Clean and minimal. Spacious padding, rounded-2xl cards, soft shadows, Inter as default, sensible defaults (1080×1080, 3s per pane). Everything should feel obvious at first click.
+
+Seed the project with 2 demo panes (headline + image) so first run looks good.
