@@ -254,7 +254,7 @@ export const useProject = create<ProjectState>()(
               ...state.project,
               panes: state.project.panes.map(pane => 
                 pane.id === state.project!.activePaneId
-                  ? { ...pane, elements: [...pane.elements, { ...element, id: nanoid() }] }
+                  ? { ...pane, elements: [...pane.elements, element] }
                   : pane
               ),
               updatedAt: new Date().toISOString(),

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { Stage, Layer, Text, Image, Rect, Transformer } from 'react-konva';
 import { Button } from '@/components/ui/button';
 import { Type, ImagePlus, Shapes, Grid3X3, Focus } from 'lucide-react';
@@ -20,11 +20,57 @@ export default function StageCanvas() {
 
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
-  const [stageScale, setStageScale] = useState(0.35);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [selectedNode, setSelectedNode] = useState<Konva.Node | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Calculate optimal scale to fit canvas in container while maintaining aspect ratio
+  const calculateOptimalScale = useCallback(() => {
+    const padding = 64; // Reserve space for padding
+    const availableWidth = containerSize.width - padding;
+    const availableHeight = containerSize.height - padding;
+    const canvasWidth = project?.canvas.width || 1080;
+    const canvasHeight = project?.canvas.height || 1080;
+    
+    const scaleX = availableWidth / canvasWidth;
+    const scaleY = availableHeight / canvasHeight;
+    
+    // Use the smaller scale to maintain aspect ratio and fit within container
+    return Math.min(scaleX, scaleY, 1); // Cap at 100% to avoid oversizing
+  }, [containerSize, project?.canvas.width, project?.canvas.height]);
+  
+  const stageScale = calculateOptimalScale();
 
   const activePane = project?.panes.find(p => p.id === project.activePaneId);
+
+  // Container size tracking with ResizeObserver
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        setContainerSize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height
+        });
+      }
+    });
+
+    resizeObserver.observe(container);
+    
+    // Initial size measurement
+    setContainerSize({
+      width: container.clientWidth,
+      height: container.clientHeight
+    });
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     if (selectedElementId && transformerRef.current && stageRef.current) {
@@ -42,7 +88,13 @@ export default function StageCanvas() {
   const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
     const pointerPosition = stage?.getPointerPosition();
-    console.log('Stage click:', e.target.getClassName(), 'id:', e.target.id(), 'pointer:', pointerPosition);
+    console.log('Stage click:', {
+      className: e.target.getClassName(),
+      id: e.target.id(),
+      pointer: pointerPosition,
+      targetName: e.target.name(),
+      isStage: e.target === stage
+    });
     
     // Check if we clicked on the background (Stage or Rect without id)
     if (e.target === stage || (e.target.getClassName() === 'Rect' && !e.target.id())) {
@@ -50,10 +102,12 @@ export default function StageCanvas() {
       setSelectedElement(null);
     } else {
       const id = e.target.id();
-      console.log('Clicked element with id:', id);
+      console.log('Clicked element with id:', id, 'Current selected:', selectedElementId);
       if (id && id !== selectedElementId) {
         console.log('Selecting element:', id);
         setSelectedElement(id);
+      } else if (id && id === selectedElementId) {
+        console.log('Element already selected:', id);
       }
     }
   };
@@ -196,7 +250,16 @@ export default function StageCanvas() {
               <Button 
                 variant="ghost" 
                 size="sm"
-                onClick={() => setStageScale(0.35)}
+                onClick={() => {
+                  // Trigger container size recalculation to fit canvas
+                  const container = containerRef.current;
+                  if (container) {
+                    setContainerSize({
+                      width: container.clientWidth,
+                      height: container.clientHeight
+                    });
+                  }
+                }}
                 data-testid="button-fit-canvas"
               >
                 <Focus className="w-4 h-4" />
@@ -206,7 +269,10 @@ export default function StageCanvas() {
         </div>
 
         {/* Canvas area */}
-        <div className="flex-1 flex items-center justify-center p-8 canvas-grid">
+        <div 
+          ref={containerRef}
+          className="flex-1 flex items-center justify-center p-8 canvas-grid"
+        >
           <div className="relative">
             <Stage
               ref={stageRef}
@@ -237,6 +303,7 @@ export default function StageCanvas() {
                     strokeWidth={4}
                     dash={[10, 5]}
                     opacity={0.6}
+                    listening={false}
                   />
                 )}
 
@@ -266,7 +333,7 @@ export default function StageCanvas() {
                         rotation={element.rotation}
                         draggable
                         listening={true}
-                        hitStrokeWidth={4}
+                        hitStrokeWidth={20}
                         perfectDrawEnabled={false}
 
                         onDragEnd={(e) => {
@@ -291,10 +358,15 @@ export default function StageCanvas() {
                   }
 
                   if (element.type === 'image') {
+                    // Create image object for Konva
+                    const imageObj = new window.Image();
+                    imageObj.src = element.src;
+                    
                     return (
                       <Image
                         key={element.id}
                         id={element.id}
+                        image={imageObj}
                         x={element.x - element.width / 2}
                         y={element.y - element.height / 2}
                         width={element.width}
