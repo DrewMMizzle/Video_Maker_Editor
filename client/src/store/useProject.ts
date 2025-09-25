@@ -1,0 +1,389 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { nanoid } from 'nanoid';
+import type { Project, Pane, Element, Brand } from '@shared/schema';
+import type { Element as KonvaElement } from '../types';
+
+interface ProjectState {
+  project: Project | null;
+  selectedElementId: string | null;
+  showSafeArea: boolean;
+  isExporting: boolean;
+  
+  // Actions
+  createProject: () => void;
+  loadProject: (project: Project) => void;
+  updateProject: (updates: Partial<Project>) => void;
+  
+  // Pane management
+  addPane: () => void;
+  duplicatePane: (paneId: string) => void;
+  deletePane: (paneId: string) => void;
+  updatePane: (paneId: string, updates: Partial<Pane>) => void;
+  setActivePane: (paneId: string) => void;
+  reorderPanes: (paneIds: string[]) => void;
+  
+  // Element management
+  addElement: (element: KonvaElement) => void;
+  updateElement: (elementId: string, updates: Partial<KonvaElement>) => void;
+  deleteElement: (elementId: string) => void;
+  duplicateElement: (elementId: string) => void;
+  setSelectedElement: (elementId: string | null) => void;
+  reorderElements: (elementIds: string[]) => void;
+  
+  // Canvas
+  updateCanvas: (updates: { width?: number; height?: number; background?: string }) => void;
+  toggleSafeArea: () => void;
+  
+  // Brand
+  updateBrand: (brand: Partial<Brand>) => void;
+  
+  // Export
+  setExporting: (isExporting: boolean) => void;
+}
+
+const createDefaultProject = (): Project => ({
+  id: nanoid(),
+  version: 'v1',
+  canvas: {
+    width: 1080,
+    height: 1080,
+    background: '#ffffff',
+  },
+  brand: {
+    palette: ['#1f2937', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'],
+    fonts: ['Inter', 'Roboto'],
+    headings: 'Inter',
+    body: 'Inter',
+  },
+  panes: [
+    {
+      id: nanoid(),
+      name: 'Scene 1',
+      durationSec: 3,
+      bgColor: '#3b82f6',
+      elements: [
+        {
+          id: nanoid(),
+          type: 'text',
+          text: 'Welcome to\nOur Platform',
+          x: 540,
+          y: 540,
+          rotation: 0,
+          z: 1,
+          opacity: 1,
+          fontFamily: 'Inter',
+          fontSize: 48,
+          fontWeight: 700,
+          lineHeight: 1.2,
+          color: '#ffffff',
+          align: 'center',
+          padding: 32,
+        }
+      ],
+    },
+    {
+      id: nanoid(),
+      name: 'Scene 2',
+      durationSec: 4,
+      bgColor: '#10b981',
+      elements: [
+        {
+          id: nanoid(),
+          type: 'text',
+          text: '✓ Feature 1\n✓ Feature 2\n✓ Feature 3',
+          x: 540,
+          y: 540,
+          rotation: 0,
+          z: 1,
+          opacity: 1,
+          fontFamily: 'Inter',
+          fontSize: 32,
+          fontWeight: 500,
+          lineHeight: 1.5,
+          color: '#ffffff',
+          align: 'center',
+          padding: 24,
+        }
+      ],
+    }
+  ],
+  activePaneId: undefined,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+});
+
+export const useProject = create<ProjectState>()(
+  persist(
+    (set, get) => ({
+      project: null,
+      selectedElementId: null,
+      showSafeArea: false,
+      isExporting: false,
+
+      createProject: () => {
+        const project = createDefaultProject();
+        set({ 
+          project: { ...project, activePaneId: project.panes[0]?.id },
+          selectedElementId: null 
+        });
+      },
+
+      loadProject: (project: Project) => {
+        set({ project, selectedElementId: null });
+      },
+
+      updateProject: (updates: Partial<Project>) => {
+        set((state) => ({
+          project: state.project ? {
+            ...state.project,
+            ...updates,
+            updatedAt: new Date().toISOString(),
+          } : null,
+        }));
+      },
+
+      addPane: () => {
+        const newPane: Pane = {
+          id: nanoid(),
+          name: `Scene ${(get().project?.panes.length || 0) + 1}`,
+          durationSec: 3,
+          bgColor: '#3b82f6',
+          elements: [],
+        };
+        
+        set((state) => ({
+          project: state.project ? {
+            ...state.project,
+            panes: [...state.project.panes, newPane],
+            activePaneId: newPane.id,
+            updatedAt: new Date().toISOString(),
+          } : null,
+        }));
+      },
+
+      duplicatePane: (paneId: string) => {
+        const state = get();
+        if (!state.project) return;
+
+        const pane = state.project.panes.find(p => p.id === paneId);
+        if (!pane) return;
+
+        const duplicatedPane: Pane = {
+          ...pane,
+          id: nanoid(),
+          name: `${pane.name} (Copy)`,
+          elements: pane.elements.map(el => ({ ...el, id: nanoid() })),
+        };
+
+        set({
+          project: {
+            ...state.project,
+            panes: [...state.project.panes, duplicatedPane],
+            activePaneId: duplicatedPane.id,
+            updatedAt: new Date().toISOString(),
+          },
+        });
+      },
+
+      deletePane: (paneId: string) => {
+        set((state) => {
+          if (!state.project || state.project.panes.length <= 1) return state;
+
+          const filteredPanes = state.project.panes.filter(p => p.id !== paneId);
+          const wasActive = state.project.activePaneId === paneId;
+
+          return {
+            project: {
+              ...state.project,
+              panes: filteredPanes,
+              activePaneId: wasActive ? filteredPanes[0]?.id : state.project.activePaneId,
+              updatedAt: new Date().toISOString(),
+            },
+            selectedElementId: wasActive ? null : state.selectedElementId,
+          };
+        });
+      },
+
+      updatePane: (paneId: string, updates: Partial<Pane>) => {
+        set((state) => ({
+          project: state.project ? {
+            ...state.project,
+            panes: state.project.panes.map(p => 
+              p.id === paneId ? { ...p, ...updates } : p
+            ),
+            updatedAt: new Date().toISOString(),
+          } : null,
+        }));
+      },
+
+      setActivePane: (paneId: string) => {
+        set((state) => ({
+          project: state.project ? {
+            ...state.project,
+            activePaneId: paneId,
+          } : null,
+          selectedElementId: null,
+        }));
+      },
+
+      reorderPanes: (paneIds: string[]) => {
+        set((state) => {
+          if (!state.project) return state;
+          
+          const reorderedPanes = paneIds.map(id => 
+            state.project!.panes.find(p => p.id === id)!
+          ).filter(Boolean);
+
+          return {
+            project: {
+              ...state.project,
+              panes: reorderedPanes,
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        });
+      },
+
+      addElement: (element: KonvaElement) => {
+        set((state) => {
+          if (!state.project?.activePaneId) return state;
+
+          return {
+            project: {
+              ...state.project,
+              panes: state.project.panes.map(pane => 
+                pane.id === state.project!.activePaneId
+                  ? { ...pane, elements: [...pane.elements, { ...element, id: nanoid() }] }
+                  : pane
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+            selectedElementId: element.id,
+          };
+        });
+      },
+
+      updateElement: (elementId: string, updates: Partial<KonvaElement>) => {
+        set((state) => ({
+          project: state.project ? {
+            ...state.project,
+            panes: state.project.panes.map(pane => ({
+              ...pane,
+              elements: pane.elements.map(el => 
+                el.id === elementId ? { ...el, ...updates } : el
+              ),
+            })),
+            updatedAt: new Date().toISOString(),
+          } : null,
+        }));
+      },
+
+      deleteElement: (elementId: string) => {
+        set((state) => ({
+          project: state.project ? {
+            ...state.project,
+            panes: state.project.panes.map(pane => ({
+              ...pane,
+              elements: pane.elements.filter(el => el.id !== elementId),
+            })),
+            updatedAt: new Date().toISOString(),
+          } : null,
+          selectedElementId: state.selectedElementId === elementId ? null : state.selectedElementId,
+        }));
+      },
+
+      duplicateElement: (elementId: string) => {
+        set((state) => {
+          if (!state.project?.activePaneId) return state;
+
+          const activePane = state.project.panes.find(p => p.id === state.project!.activePaneId);
+          const element = activePane?.elements.find(el => el.id === elementId);
+          
+          if (!element) return state;
+
+          const duplicatedElement = {
+            ...element,
+            id: nanoid(),
+            x: element.x + 20,
+            y: element.y + 20,
+          };
+
+          return {
+            project: {
+              ...state.project,
+              panes: state.project.panes.map(pane => 
+                pane.id === state.project!.activePaneId
+                  ? { ...pane, elements: [...pane.elements, duplicatedElement] }
+                  : pane
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+            selectedElementId: duplicatedElement.id,
+          };
+        });
+      },
+
+      setSelectedElement: (elementId: string | null) => {
+        set({ selectedElementId: elementId });
+      },
+
+      reorderElements: (elementIds: string[]) => {
+        set((state) => {
+          if (!state.project?.activePaneId) return state;
+
+          const activePane = state.project.panes.find(p => p.id === state.project!.activePaneId);
+          if (!activePane) return state;
+
+          const reorderedElements = elementIds.map(id => 
+            activePane.elements.find(el => el.id === id)!
+          ).filter(Boolean);
+
+          return {
+            project: {
+              ...state.project,
+              panes: state.project.panes.map(pane => 
+                pane.id === state.project!.activePaneId
+                  ? { ...pane, elements: reorderedElements }
+                  : pane
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        });
+      },
+
+      updateCanvas: (updates) => {
+        set((state) => ({
+          project: state.project ? {
+            ...state.project,
+            canvas: { ...state.project.canvas, ...updates },
+            updatedAt: new Date().toISOString(),
+          } : null,
+        }));
+      },
+
+      toggleSafeArea: () => {
+        set((state) => ({ showSafeArea: !state.showSafeArea }));
+      },
+
+      updateBrand: (brand: Partial<Brand>) => {
+        set((state) => ({
+          project: state.project ? {
+            ...state.project,
+            brand: { ...state.project.brand, ...brand },
+            updatedAt: new Date().toISOString(),
+          } : null,
+        }));
+      },
+
+      setExporting: (isExporting: boolean) => {
+        set({ isExporting });
+      },
+    }),
+    {
+      name: 'linkedin-video-editor',
+      partialize: (state) => ({ project: state.project }),
+    }
+  )
+);
