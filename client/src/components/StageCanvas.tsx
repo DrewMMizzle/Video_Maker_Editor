@@ -40,11 +40,19 @@ export default function StageCanvas() {
   }, [selectedElementId]);
 
   const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
-    if (e.target === e.target.getStage()) {
+    const stage = e.target.getStage();
+    const pointerPosition = stage?.getPointerPosition();
+    console.log('Stage click:', e.target.getClassName(), 'id:', e.target.id(), 'pointer:', pointerPosition);
+    
+    // Check if we clicked on the background (Stage or Rect without id)
+    if (e.target === stage || (e.target.getClassName() === 'Rect' && !e.target.id())) {
+      console.log('Clicked stage background - deselecting');
       setSelectedElement(null);
     } else {
       const id = e.target.id();
+      console.log('Clicked element with id:', id);
       if (id && id !== selectedElementId) {
+        console.log('Selecting element:', id);
         setSelectedElement(id);
       }
     }
@@ -132,8 +140,8 @@ export default function StageCanvas() {
     );
   }
 
-  const canvasWidth = project.canvas.width * stageScale;
-  const canvasHeight = project.canvas.height * stageScale;
+  const canvasWidth = project.canvas.width;
+  const canvasHeight = project.canvas.height;
 
   return (
     <main className="flex-1 bg-muted overflow-hidden" data-testid="stage-canvas">
@@ -204,6 +212,8 @@ export default function StageCanvas() {
               ref={stageRef}
               width={canvasWidth}
               height={canvasHeight}
+              scaleX={stageScale}
+              scaleY={stageScale}
               onClick={handleStageClick}
               data-testid="konva-stage"
             >
@@ -213,6 +223,7 @@ export default function StageCanvas() {
                   width={project.canvas.width}
                   height={project.canvas.height}
                   fill={activePane.bgColor}
+                  listening={false}
                 />
 
                 {/* Safe area overlay */}
@@ -233,23 +244,30 @@ export default function StageCanvas() {
                 {activePane.elements.map(element => {
                   console.log('Rendering element:', element.type, element.id, 'at', element.x, element.y);
                   if (element.type === 'text') {
+                    const textX = element.x - 100;
+                    const textY = element.y - 16;
+                    console.log('Text rendered at:', textX, textY, 'with id:', element.id);
                     return (
                       <Text
                         key={element.id}
                         id={element.id}
                         text={element.text}
-                        x={element.x - 100} // Rough centering offset
-                        y={element.y - 20}
-                        fontSize={element.fontSize * stageScale}
+                        x={textX}
+                        y={textY}
+                        fontSize={element.fontSize}
                         fontFamily={element.fontFamily}
                         fontStyle={typeof element.fontWeight === 'number' && element.fontWeight > 500 ? 'bold' : 'normal'}
                         fill={element.color}
                         align={element.align}
                         width={200}
+                        height={element.fontSize * 1.2}
                         lineHeight={element.lineHeight}
                         opacity={element.opacity}
                         rotation={element.rotation}
                         draggable
+                        listening={true}
+                        hitStrokeWidth={4}
+                        perfectDrawEnabled={false}
 
                         onDragEnd={(e) => {
                           handleElementChange(element.id, {
