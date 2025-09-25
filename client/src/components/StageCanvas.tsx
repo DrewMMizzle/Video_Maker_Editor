@@ -231,6 +231,7 @@ export default function StageCanvas() {
 
                 {/* Elements */}
                 {activePane.elements.map(element => {
+                  console.log('Rendering element:', element.type, element.id, 'at', element.x, element.y);
                   if (element.type === 'text') {
                     return (
                       <Text
@@ -239,7 +240,7 @@ export default function StageCanvas() {
                         text={element.text}
                         x={element.x - 100} // Rough centering offset
                         y={element.y - 20}
-                        fontSize={element.fontSize}
+                        fontSize={element.fontSize * stageScale}
                         fontFamily={element.fontFamily}
                         fontStyle={typeof element.fontWeight === 'number' && element.fontWeight > 500 ? 'bold' : 'normal'}
                         fill={element.color}
@@ -249,6 +250,7 @@ export default function StageCanvas() {
                         opacity={element.opacity}
                         rotation={element.rotation}
                         draggable
+
                         onDragEnd={(e) => {
                           handleElementChange(element.id, {
                             x: e.target.x() + 100,
@@ -282,6 +284,7 @@ export default function StageCanvas() {
                         opacity={element.opacity}
                         rotation={element.rotation}
                         draggable
+
                         onDragEnd={(e) => {
                           handleElementChange(element.id, {
                             x: e.target.x() + element.width / 2,

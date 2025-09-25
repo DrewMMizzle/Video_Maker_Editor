@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { AlignLeft, AlignCenter, AlignRight, MoveUp, MoveDown, Copy, Trash2 } from 'lucide-react';
 import { useProject } from '@/store/useProject';
 import { FONT_FAMILIES, FONT_WEIGHTS } from '@/types';
-// Import BrandPanel and ColorSwatches are not needed here since they're used in separate tabs
+import BrandPanel from './BrandPanel';
 
 export default function PropertiesPanel() {
   const {
