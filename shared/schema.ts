@@ -72,7 +72,10 @@ export const projectSchema = z.object({
   }),
   panes: z.array(paneSchema),
   activePaneId: z.string().optional(),
-  thumbnail: z.string().optional(), // base64 data URL for preview
+  thumbnail: z.string().refine(
+    (val) => !val || val.length <= 500000, // ~500KB limit for base64
+    { message: "Thumbnail must be under 500KB" }
+  ).optional(), // base64 data URL for preview
   lastOpenedAt: z.string().datetime().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

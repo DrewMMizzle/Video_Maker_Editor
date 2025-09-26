@@ -11,23 +11,40 @@ export interface IStorage {
 
 export class MemStorage implements IStorage {
   private projects: Map<string, Project>;
+  private readonly MAX_PROJECTS = 100;
 
   constructor() {
     this.projects = new Map();
   }
 
   async getProject(id: string): Promise<Project | undefined> {
-    return this.projects.get(id);
+    const project = this.projects.get(id);
+    if (project) {
+      // Update lastOpenedAt when project is accessed
+      const updatedProject = {
+        ...project,
+        lastOpenedAt: new Date().toISOString()
+      };
+      this.projects.set(id, updatedProject);
+      return updatedProject;
+    }
+    return undefined;
   }
 
   async createProject(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project> {
+    // Check storage limit
+    if (this.projects.size >= this.MAX_PROJECTS) {
+      throw new Error(`Storage limit reached. Maximum ${this.MAX_PROJECTS} projects allowed.`);
+    }
+
     const id = randomUUID();
     const now = new Date().toISOString();
     const newProject: Project = { 
       ...project, 
       id, 
       createdAt: now, 
-      updatedAt: now 
+      updatedAt: now,
+      lastOpenedAt: now
     };
     this.projects.set(id, newProject);
     return newProject;
