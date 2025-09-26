@@ -3,12 +3,14 @@ import { persist } from 'zustand/middleware';
 import { nanoid } from 'nanoid';
 import type { Project, Pane, Element, Brand } from '@shared/schema';
 import type { Element as KonvaElement } from '../types';
+import { TEMPLATES } from '../types';
 
 interface ProjectState {
   project: Project | null;
   selectedElementId: string | null;
   showSafeArea: boolean;
   isExporting: boolean;
+  activeTemplates: Record<string, { templateId: string; originalElements: KonvaElement[] }>;
   
   // Actions
   createProject: () => void;
@@ -40,6 +42,10 @@ interface ProjectState {
   
   // Export
   setExporting: (isExporting: boolean) => void;
+  
+  // Templates
+  toggleTemplate: (templateId: string) => void;
+  isTemplateActive: (templateId: string) => boolean;
 }
 
 const createDefaultProject = (): Project => ({
@@ -120,6 +126,7 @@ export const useProject = create<ProjectState>()(
       selectedElementId: null,
       showSafeArea: false,
       isExporting: false,
+      activeTemplates: {},
 
       createProject: () => {
         const project = createDefaultProject();
@@ -380,10 +387,81 @@ export const useProject = create<ProjectState>()(
       setExporting: (isExporting: boolean) => {
         set({ isExporting });
       },
+
+      toggleTemplate: (templateId: string) => {
+        set((state) => {
+          if (!state.project?.activePaneId) return state;
+
+          const paneId = state.project.activePaneId;
+          const isActive = state.activeTemplates[paneId]?.templateId === templateId;
+
+          if (isActive) {
+            // Revert to original elements
+            const originalElements = state.activeTemplates[paneId].originalElements;
+            const newTemplates = { ...state.activeTemplates };
+            delete newTemplates[paneId];
+
+            return {
+              ...state,
+              project: {
+                ...state.project,
+                panes: state.project.panes.map(pane => 
+                  pane.id === paneId
+                    ? { ...pane, elements: originalElements }
+                    : pane
+                ),
+                updatedAt: new Date().toISOString(),
+              },
+              activeTemplates: newTemplates,
+            };
+          } else {
+            // Store original elements and apply template
+            const currentPane = state.project.panes.find(p => p.id === paneId);
+            if (!currentPane) return state;
+
+            const template = TEMPLATES.find(t => t.id === templateId);
+            if (!template) return state;
+
+            const originalElements = [...currentPane.elements];
+            const newElements = template.elements.map(el => ({
+              ...el,
+              id: nanoid(),
+            } as KonvaElement));
+
+            return {
+              ...state,
+              project: {
+                ...state.project,
+                panes: state.project.panes.map(pane => 
+                  pane.id === paneId
+                    ? { ...pane, elements: [...originalElements, ...newElements] }
+                    : pane
+                ),
+                updatedAt: new Date().toISOString(),
+              },
+              activeTemplates: {
+                ...state.activeTemplates,
+                [paneId]: { templateId, originalElements },
+              },
+            };
+          }
+        });
+      },
+
+      isTemplateActive: (templateId: string) => {
+        const state = get();
+        if (!state.project?.activePaneId) return false;
+        
+        const paneId = state.project.activePaneId;
+        return state.activeTemplates[paneId]?.templateId === templateId;
+      },
     }),
     {
       name: 'linkedin-video-editor',
-      partialize: (state) => ({ project: state.project }),
+      partialize: (state) => ({ 
+        project: state.project,
+        activeTemplates: state.activeTemplates
+      }),
     }
   )
 );

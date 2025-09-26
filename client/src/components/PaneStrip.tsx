@@ -131,7 +131,8 @@ export default function PaneStrip() {
     updatePane, 
     setActivePane,
     reorderPanes,
-    addElement 
+    toggleTemplate,
+    isTemplateActive
   } = useProject();
 
   const sensors = useSensors(
@@ -152,14 +153,6 @@ export default function PaneStrip() {
     }
   };
 
-  const handleTemplateSelect = (template: typeof TEMPLATES[0]) => {
-    const elements = template.elements.map(el => ({
-      ...el,
-      id: nanoid(),
-    }));
-
-    elements.forEach(element => addElement(element));
-  };
 
   if (!project) return null;
 
@@ -199,19 +192,25 @@ export default function PaneStrip() {
         <div className="mt-6">
           <h3 className="text-sm font-semibold mb-3">Quick Templates</h3>
           <div className="grid grid-cols-2 gap-2">
-            {TEMPLATES.map(template => (
-              <Button
-                key={template.id}
-                variant="outline"
-                size="sm"
-                className="p-2 h-auto flex-col text-xs"
-                onClick={() => handleTemplateSelect(template)}
-                data-testid={`button-template-${template.id}`}
-              >
-                <div className="text-sm mb-1">{template.icon}</div>
-                <div className="leading-tight">{template.name}</div>
-              </Button>
-            ))}
+            {TEMPLATES.map(template => {
+              const isActive = isTemplateActive(template.id);
+              return (
+                <Button
+                  key={template.id}
+                  variant={isActive ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "p-2 h-auto flex-col text-xs transition-colors",
+                    isActive && "bg-primary text-primary-foreground"
+                  )}
+                  onClick={() => toggleTemplate(template.id)}
+                  data-testid={`button-template-${template.id}`}
+                >
+                  <div className="text-sm mb-1">{template.icon}</div>
+                  <div className="leading-tight">{template.name}</div>
+                </Button>
+              );
+            })}
           </div>
         </div>
       </div>
