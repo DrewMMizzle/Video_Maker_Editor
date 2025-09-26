@@ -296,15 +296,84 @@ export default function TopBar() {
     }
   };
 
+  // Auto-save before export with fresh thumbnail
+  const autoSaveBeforeExport = async () => {
+    if (!project) return;
+
+    try {
+      // Generate fresh thumbnail
+      const thumbnail = await generateThumbnail(project);
+      
+      if (currentProjectId) {
+        // Try to update existing project first
+        try {
+          await new Promise((resolve, reject) => {
+            saveProjectMutation.mutate({ 
+              projectData: project, 
+              thumbnail 
+            }, {
+              onSuccess: resolve,
+              onError: reject
+            });
+          });
+        } catch (updateError: any) {
+          // If update fails (e.g., 404 project not found), create new project instead
+          console.warn('Failed to update existing project, creating new one:', updateError);
+          const title = currentProjectTitle || 'Untitled Project';
+          await new Promise((resolve, reject) => {
+            saveAsProjectMutation.mutate({ 
+              projectData: project, 
+              title, 
+              thumbnail 
+            }, {
+              onSuccess: (savedProject) => {
+                // Update the current project ID to the newly created project
+                setCurrentProjectId(savedProject.id);
+                setCurrentProjectTitle(savedProject.title);
+                resolve(savedProject);
+              },
+              onError: reject
+            });
+          });
+        }
+      } else {
+        // Create new project with default title
+        const title = currentProjectTitle || 'Untitled Project';
+        await new Promise((resolve, reject) => {
+          saveAsProjectMutation.mutate({ 
+            projectData: project, 
+            title, 
+            thumbnail 
+          }, {
+            onSuccess: (savedProject) => {
+              // Update the current project ID to the newly created project
+              setCurrentProjectId(savedProject.id);
+              setCurrentProjectTitle(savedProject.title);
+              resolve(savedProject);
+            },
+            onError: reject
+          });
+        });
+      }
+    } catch (error) {
+      // If auto-save fails, continue with export anyway
+      console.warn('Auto-save before export failed, continuing with export:', error);
+    }
+  };
+
   const handleExportVideo = async () => {
     if (!project || isExporting) return;
 
     try {
       setExporting(true);
+      
+      // Auto-save project with fresh thumbnail before exporting
+      await autoSaveBeforeExport();
+      
       await exportVideo(project);
       toast({
-        title: "Video exported",
-        description: "WebM video file has been downloaded.",
+        title: "Video exported and saved",
+        description: "WebM video file has been downloaded and project has been saved.",
       });
     } catch (error) {
       toast({
@@ -321,10 +390,13 @@ export default function TopBar() {
     if (!project || !project.activePaneId) return;
 
     try {
+      // Auto-save project with fresh thumbnail before exporting
+      await autoSaveBeforeExport();
+      
       await exportCurrentPane(project, project.activePaneId);
       toast({
-        title: "PNG exported",
-        description: "Image file has been downloaded.",
+        title: "PNG exported and saved",
+        description: "Image file has been downloaded and project has been saved.",
       });
     } catch (error) {
       toast({
