@@ -78,22 +78,27 @@ export default function StageCanvas() {
       if (node) {
         setSelectedNode(node);
         transformerRef.current.nodes([node]);
+        transformerRef.current.getLayer()?.batchDraw();
       }
     } else if (transformerRef.current) {
       transformerRef.current.nodes([]);
       setSelectedNode(null);
+      transformerRef.current.getLayer()?.batchDraw();
     }
   }, [selectedElementId]);
 
   const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
     const stage = e.target.getStage();
     const pointerPosition = stage?.getPointerPosition();
-    console.log('Stage click:', {
+    console.log('=== STAGE CLICK DEBUG ===');
+    console.log('Stage click event received:', {
       className: e.target.getClassName(),
       id: e.target.id(),
       pointer: pointerPosition,
       targetName: e.target.name(),
-      isStage: e.target === stage
+      isStage: e.target === stage,
+      stageScale: stageScale,
+      targetPosition: { x: e.target.x(), y: e.target.y() }
     });
     
     // Check if we clicked on the background (Stage or Rect without id)
@@ -104,12 +109,16 @@ export default function StageCanvas() {
       const id = e.target.id();
       console.log('Clicked element with id:', id, 'Current selected:', selectedElementId);
       if (id && id !== selectedElementId) {
-        console.log('Selecting element:', id);
+        console.log('Setting selected element to:', id);
         setSelectedElement(id);
+        console.log('After setSelectedElement, selectedElementId should be:', id);
       } else if (id && id === selectedElementId) {
         console.log('Element already selected:', id);
+      } else {
+        console.log('No valid ID found on clicked element');
       }
     }
+    console.log('=== END STAGE CLICK DEBUG ===');
   };
 
   const handleElementChange = (id: string, attrs: any) => {
@@ -335,18 +344,27 @@ export default function StageCanvas() {
                         listening={true}
                         hitStrokeWidth={20}
                         perfectDrawEnabled={false}
+                        onClick={(e) => {
+                          console.log('=== TEXT ELEMENT CLICK ===');
+                          console.log('Text element clicked:', element.id);
+                          console.log('Current selectedElementId:', selectedElementId);
+                          e.cancelBubble = true; // Prevent event bubbling
+                          setSelectedElement(element.id);
+                          console.log('Called setSelectedElement with:', element.id);
+                          console.log('=== END TEXT ELEMENT CLICK ===');
+                        }}
 
                         onDragEnd={(e) => {
                           handleElementChange(element.id, {
                             x: e.target.x() + 100,
-                            y: e.target.y() + 20,
+                            y: e.target.y() + 16,
                           });
                         }}
                         onTransformEnd={(e) => {
                           const node = e.target;
                           handleElementChange(element.id, {
                             x: node.x() + 100,
-                            y: node.y() + 20,
+                            y: node.y() + 16,
                             rotation: node.rotation(),
                             fontSize: element.fontSize * node.scaleX(),
                           });
