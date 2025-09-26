@@ -236,6 +236,74 @@ async function renderPaneToContext(
 }
 
 /**
+ * Generates a thumbnail for a specific pane
+ * Used for displaying pane previews in the timeline/scenes panel
+ */
+export async function generatePaneThumbnail(
+  pane: Pane,
+  canvasWidth: number,
+  canvasHeight: number,
+  options: ThumbnailOptions = {}
+): Promise<string> {
+  const { width = 120, height = 120, quality = 0.8, maxAttempts = 3 } = options;
+  
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Unable to create canvas context');
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+
+  // Calculate scale to fit project canvas in thumbnail while maintaining aspect ratio
+  const scaleX = width / canvasWidth;
+  const scaleY = height / canvasHeight;
+  const scale = Math.min(scaleX, scaleY);
+
+  // Center the scaled content
+  const scaledWidth = canvasWidth * scale;
+  const scaledHeight = canvasHeight * scale;
+  const offsetX = (width - scaledWidth) / 2;
+  const offsetY = (height - scaledHeight) / 2;
+
+  // Clear and fill background
+  ctx.fillStyle = '#f5f5f5'; // Light gray background for the thumbnail area
+  ctx.fillRect(0, 0, width, height);
+
+  // Save context and apply scaling and centering
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(scale, scale);
+
+  // Render the pane
+  await renderPaneToContext(ctx, pane, canvasWidth, canvasHeight);
+
+  ctx.restore();
+
+  // Convert to base64 with optimization for smaller thumbnails
+  let dataUrl = canvas.toDataURL('image/jpeg', quality);
+  let attempts = 0;
+  
+  // For pane thumbnails, we use a more relaxed size limit since they're smaller
+  const paneThumbnailSizeLimit = 100000; // ~100KB limit for pane thumbnails
+  
+  while (dataUrl.length > paneThumbnailSizeLimit && attempts < maxAttempts) {
+    attempts++;
+    
+    if (attempts === 1) {
+      // First attempt: reduce JPEG quality
+      dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+    } else {
+      // Subsequent attempts: reduce quality further
+      dataUrl = canvas.toDataURL('image/jpeg', 0.4);
+    }
+  }
+
+  return dataUrl;
+}
+
+/**
  * Generates a thumbnail for the current project state in the store
  * Convenience function for use in components
  */

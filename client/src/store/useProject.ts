@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import type { Project, Pane, Element, Brand } from '@shared/schema';
 import type { Element as KonvaElement } from '../types';
 import { TEMPLATES } from '../types';
+import { generatePaneThumbnail } from '../lib/generateThumbnail';
 
 interface ProjectState {
   project: Project | null;
@@ -46,11 +47,15 @@ interface ProjectState {
   // Templates
   toggleTemplate: (templateId: string) => void;
   isTemplateActive: (templateId: string) => boolean;
+  
+  // Thumbnails
+  updatePaneThumbnail: (paneId: string) => Promise<void>;
 }
 
 const createDefaultProject = (): Project => ({
   id: nanoid(),
   version: 'v1',
+  title: 'Untitled Project',
   canvas: {
     width: 1080,
     height: 1080,
@@ -213,15 +218,26 @@ export const useProject = create<ProjectState>()(
       },
 
       updatePane: (paneId: string, updates: Partial<Pane>) => {
-        set((state) => ({
-          project: state.project ? {
-            ...state.project,
-            panes: state.project.panes.map(p => 
-              p.id === paneId ? { ...p, ...updates } : p
-            ),
-            updatedAt: new Date().toISOString(),
-          } : null,
-        }));
+        set((state) => {
+          const newState = {
+            project: state.project ? {
+              ...state.project,
+              panes: state.project.panes.map(p => 
+                p.id === paneId ? { ...p, ...updates } : p
+              ),
+              updatedAt: new Date().toISOString(),
+            } : null,
+          };
+
+          // Regenerate thumbnail for the updated pane if visual properties changed
+          if (updates.bgColor) {
+            setTimeout(() => {
+              get().updatePaneThumbnail(paneId);
+            }, 300);
+          }
+
+          return newState;
+        });
       },
 
       setActivePane: (paneId: string) => {
@@ -256,7 +272,7 @@ export const useProject = create<ProjectState>()(
         set((state) => {
           if (!state.project?.activePaneId) return state;
 
-          return {
+          const newState = {
             project: {
               ...state.project,
               panes: state.project.panes.map(pane => 
@@ -268,36 +284,65 @@ export const useProject = create<ProjectState>()(
             },
             selectedElementId: element.id,
           };
+
+          // Regenerate thumbnail for the active pane after adding element
+          setTimeout(() => {
+            get().updatePaneThumbnail(state.project!.activePaneId!);
+          }, 300);
+
+          return newState;
         });
       },
 
       updateElement: (elementId: string, updates: Partial<KonvaElement>) => {
-        set((state) => ({
-          project: state.project ? {
-            ...state.project,
-            panes: state.project.panes.map(pane => ({
-              ...pane,
-              elements: pane.elements.map(el => 
-                el.id === elementId ? { ...el, ...updates } : el
-              ),
-            })),
-            updatedAt: new Date().toISOString(),
-          } : null,
-        }));
+        set((state) => {
+          const newState = {
+            project: state.project ? {
+              ...state.project,
+              panes: state.project.panes.map(pane => ({
+                ...pane,
+                elements: pane.elements.map(el => 
+                  el.id === elementId ? { ...el, ...updates } : el
+                ),
+              })),
+              updatedAt: new Date().toISOString(),
+            } : null,
+          };
+
+          // Regenerate thumbnail for the pane that contains the updated element
+          if (state.project?.activePaneId) {
+            setTimeout(() => {
+              get().updatePaneThumbnail(state.project!.activePaneId!);
+            }, 300);
+          }
+
+          return newState;
+        });
       },
 
       deleteElement: (elementId: string) => {
-        set((state) => ({
-          project: state.project ? {
-            ...state.project,
-            panes: state.project.panes.map(pane => ({
-              ...pane,
-              elements: pane.elements.filter(el => el.id !== elementId),
-            })),
-            updatedAt: new Date().toISOString(),
-          } : null,
-          selectedElementId: state.selectedElementId === elementId ? null : state.selectedElementId,
-        }));
+        set((state) => {
+          const newState = {
+            project: state.project ? {
+              ...state.project,
+              panes: state.project.panes.map(pane => ({
+                ...pane,
+                elements: pane.elements.filter(el => el.id !== elementId),
+              })),
+              updatedAt: new Date().toISOString(),
+            } : null,
+            selectedElementId: state.selectedElementId === elementId ? null : state.selectedElementId,
+          };
+
+          // Regenerate thumbnail for the active pane after deleting element
+          if (state.project?.activePaneId) {
+            setTimeout(() => {
+              get().updatePaneThumbnail(state.project!.activePaneId!);
+            }, 300);
+          }
+
+          return newState;
+        });
       },
 
       duplicateElement: (elementId: string) => {
@@ -316,7 +361,7 @@ export const useProject = create<ProjectState>()(
             y: element.y + 20,
           };
 
-          return {
+          const newState = {
             project: {
               ...state.project,
               panes: state.project.panes.map(pane => 
@@ -328,6 +373,13 @@ export const useProject = create<ProjectState>()(
             },
             selectedElementId: duplicatedElement.id,
           };
+
+          // Regenerate thumbnail for the active pane after duplicating element
+          setTimeout(() => {
+            get().updatePaneThumbnail(state.project!.activePaneId!);
+          }, 300);
+
+          return newState;
         });
       },
 
@@ -346,7 +398,7 @@ export const useProject = create<ProjectState>()(
             activePane.elements.find(el => el.id === id)!
           ).filter(Boolean);
 
-          return {
+          const newState = {
             project: {
               ...state.project,
               panes: state.project.panes.map(pane => 
@@ -357,17 +409,39 @@ export const useProject = create<ProjectState>()(
               updatedAt: new Date().toISOString(),
             },
           };
+
+          // Regenerate thumbnail for the active pane after reordering elements
+          setTimeout(() => {
+            get().updatePaneThumbnail(state.project!.activePaneId!);
+          }, 300);
+
+          return newState;
         });
       },
 
       updateCanvas: (updates) => {
-        set((state) => ({
-          project: state.project ? {
-            ...state.project,
-            canvas: { ...state.project.canvas, ...updates },
-            updatedAt: new Date().toISOString(),
-          } : null,
-        }));
+        set((state) => {
+          const newState = {
+            project: state.project ? {
+              ...state.project,
+              canvas: { ...state.project.canvas, ...updates },
+              updatedAt: new Date().toISOString(),
+            } : null,
+          };
+
+          // Regenerate all pane thumbnails after canvas changes
+          if (state.project && (updates.width || updates.height || updates.background)) {
+            setTimeout(() => {
+              state.project!.panes.forEach(pane => {
+                if (pane.thumbnail) {
+                  get().updatePaneThumbnail(pane.id);
+                }
+              });
+            }, 300);
+          }
+
+          return newState;
+        });
       },
 
       toggleSafeArea: () => {
@@ -401,7 +475,7 @@ export const useProject = create<ProjectState>()(
             const newTemplates = { ...state.activeTemplates };
             delete newTemplates[paneId];
 
-            return {
+            const newState = {
               ...state,
               project: {
                 ...state.project,
@@ -414,6 +488,13 @@ export const useProject = create<ProjectState>()(
               },
               activeTemplates: newTemplates,
             };
+
+            // Regenerate thumbnail after reverting template
+            setTimeout(() => {
+              get().updatePaneThumbnail(paneId);
+            }, 300);
+
+            return newState;
           } else {
             // Store original elements and apply template
             const currentPane = state.project.panes.find(p => p.id === paneId);
@@ -428,7 +509,7 @@ export const useProject = create<ProjectState>()(
               id: nanoid(),
             } as KonvaElement));
 
-            return {
+            const newState = {
               ...state,
               project: {
                 ...state.project,
@@ -444,6 +525,13 @@ export const useProject = create<ProjectState>()(
                 [paneId]: { templateId, originalElements },
               },
             };
+
+            // Regenerate thumbnail after applying template
+            setTimeout(() => {
+              get().updatePaneThumbnail(paneId);
+            }, 300);
+
+            return newState;
           }
         });
       },
@@ -454,6 +542,34 @@ export const useProject = create<ProjectState>()(
         
         const paneId = state.project.activePaneId;
         return state.activeTemplates[paneId]?.templateId === templateId;
+      },
+
+      updatePaneThumbnail: async (paneId: string) => {
+        const state = get();
+        if (!state.project) return;
+
+        const pane = state.project.panes.find(p => p.id === paneId);
+        if (!pane) return;
+
+        try {
+          const thumbnail = await generatePaneThumbnail(
+            pane,
+            state.project.canvas.width,
+            state.project.canvas.height
+          );
+
+          set((prevState) => ({
+            project: prevState.project ? {
+              ...prevState.project,
+              panes: prevState.project.panes.map(p =>
+                p.id === paneId ? { ...p, thumbnail } : p
+              ),
+              updatedAt: new Date().toISOString(),
+            } : null,
+          }));
+        } catch (error) {
+          console.warn('Failed to generate pane thumbnail:', error);
+        }
       },
     }),
     {

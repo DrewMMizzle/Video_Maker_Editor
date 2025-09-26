@@ -9,6 +9,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
 import { nanoid } from 'nanoid';
+import { useEffect } from 'react';
 
 function SortablePaneItem({ pane, isActive, onSelect, onUpdate, onDuplicate, onDelete }: {
   pane: any;
@@ -60,25 +61,38 @@ function SortablePaneItem({ pane, isActive, onSelect, onUpdate, onDuplicate, onD
 
       {/* Thumbnail */}
       <div 
-        className="w-full aspect-square rounded-md mb-2 relative overflow-hidden"
-        style={{ backgroundColor: pane.bgColor }}
+        className="w-full aspect-square rounded-md mb-2 relative overflow-hidden bg-muted"
       >
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-white text-center text-xs">
-            {pane.elements.length > 0 && (
-              <div className="space-y-1">
-                {pane.elements.slice(0, 2).map((el: any) => (
-                  <div key={el.id} className="truncate max-w-full">
-                    {el.type === 'text' ? el.text.split('\n')[0] : `${el.type}`}
-                  </div>
-                ))}
-                {pane.elements.length > 2 && (
-                  <div className="text-xs opacity-75">+{pane.elements.length - 2} more</div>
-                )}
-              </div>
-            )}
+        {pane.thumbnail ? (
+          <img 
+            src={pane.thumbnail} 
+            alt={`${pane.name} preview`}
+            className="w-full h-full object-cover"
+            data-testid={`thumbnail-${pane.id}`}
+          />
+        ) : (
+          <div 
+            className="w-full h-full flex items-center justify-center"
+            style={{ backgroundColor: pane.bgColor }}
+          >
+            <div className="text-white text-center text-xs">
+              {pane.elements.length > 0 ? (
+                <div className="space-y-1">
+                  {pane.elements.slice(0, 2).map((el: any) => (
+                    <div key={el.id} className="truncate max-w-full">
+                      {el.type === 'text' ? el.text.split('\n')[0] : `${el.type}`}
+                    </div>
+                  ))}
+                  {pane.elements.length > 2 && (
+                    <div className="text-xs opacity-75">+{pane.elements.length - 2} more</div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-xs opacity-75">Empty scene</div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between">
@@ -132,8 +146,29 @@ export default function PaneStrip() {
     setActivePane,
     reorderPanes,
     toggleTemplate,
-    isTemplateActive
+    isTemplateActive,
+    updatePaneThumbnail
   } = useProject();
+
+  // Generate thumbnails for panes that don't have them
+  useEffect(() => {
+    if (!project?.panes) return;
+
+    const generateMissingThumbnails = async () => {
+      for (const pane of project.panes) {
+        if (!pane.thumbnail && pane.elements.length > 0) {
+          try {
+            await updatePaneThumbnail(pane.id);
+          } catch (error) {
+            console.warn(`Failed to generate thumbnail for pane ${pane.id}:`, error);
+          }
+        }
+      }
+    };
+
+    // Generate thumbnails on component mount and when panes change
+    generateMissingThumbnails();
+  }, [project?.panes, updatePaneThumbnail]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
