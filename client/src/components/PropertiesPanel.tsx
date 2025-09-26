@@ -38,15 +38,15 @@ export default function PropertiesPanel() {
     <aside className="w-80 border-l border-border bg-card" data-testid="properties-panel">
       <div className="h-full flex flex-col">
         <Tabs defaultValue="properties" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-3 flex-shrink-0">
             <TabsTrigger value="properties" data-testid="tab-properties">Properties</TabsTrigger>
             <TabsTrigger value="document" data-testid="tab-document">Document</TabsTrigger>
             <TabsTrigger value="brand" data-testid="tab-brand">Brand</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="properties" className="flex-1 overflow-y-auto p-4">
+          <TabsContent value="properties" className="flex-1 overflow-y-auto p-4 min-h-0">
             {selectedElement ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {selectedElement.type === 'text' && (
                   <>
                     <div>
@@ -406,8 +406,8 @@ export default function PropertiesPanel() {
             )}
           </TabsContent>
 
-          <TabsContent value="document" className="flex-1 overflow-y-auto p-4">
-            <div className="space-y-6">
+          <TabsContent value="document" className="flex-1 overflow-y-auto p-4 min-h-0">
+            <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-medium mb-3">Canvas Size</h3>
                 <div className="grid grid-cols-2 gap-3">
@@ -486,7 +486,7 @@ export default function PropertiesPanel() {
             </div>
           </TabsContent>
 
-          <TabsContent value="brand" className="flex-1 overflow-y-auto">
+          <TabsContent value="brand" className="flex-1 overflow-y-auto min-h-0">
             <BrandPanel />
           </TabsContent>
         </Tabs>
