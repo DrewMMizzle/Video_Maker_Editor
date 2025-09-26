@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Type, ImagePlus, Shapes, Grid3X3, Focus } from 'lucide-react';
 import { useProject } from '@/store/useProject';
 import { nanoid } from 'nanoid';
-import type { KonvaEventObject } from 'konva/lib/Node';
 import Konva from 'konva';
 
 export default function StageCanvas() {
@@ -19,8 +18,17 @@ export default function StageCanvas() {
   } = useProject();
 
   const stageRef = useRef<Konva.Stage>(null);
+  const layerRef = useRef<Konva.Layer>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Safely escape IDs for findOne selectors
+  const escapeId = (id: string) => {
+    // @ts-ignore: CSS.escape not in older TS libs
+    return typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+      ? CSS.escape(id)
+      : id.replace(/([ #;?%&,.+*~':"!^$[\]()=>|\/@])/g, '\\$1');
+  };
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [selectedNode, setSelectedNode] = useState<Konva.Node | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -73,53 +81,56 @@ export default function StageCanvas() {
   }, []);
 
   useEffect(() => {
-    if (selectedElementId && transformerRef.current && stageRef.current) {
-      const node = stageRef.current.findOne(`#${selectedElementId}`);
-      if (node) {
-        setSelectedNode(node);
-        transformerRef.current.nodes([node]);
-        transformerRef.current.getLayer()?.batchDraw();
-      }
-    } else if (transformerRef.current) {
-      transformerRef.current.nodes([]);
-      setSelectedNode(null);
-      transformerRef.current.getLayer()?.batchDraw();
-    }
-  }, [selectedElementId]);
+    const tr = transformerRef.current;
+    const layer = layerRef.current;
+    if (!tr || !layer) return;
 
-  const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
-    const stage = e.target.getStage();
-    const pointerPosition = stage?.getPointerPosition();
-    console.log('=== STAGE CLICK DEBUG ===');
-    console.log('Stage click event received:', {
-      className: e.target.getClassName(),
-      id: e.target.id(),
-      pointer: pointerPosition,
-      targetName: e.target.name(),
-      isStage: e.target === stage,
-      stageScale: stageScale,
-      targetPosition: { x: e.target.x(), y: e.target.y() }
-    });
-    
-    // Check if we clicked on the background (Stage or Rect without id)
-    if (e.target === stage || (e.target.getClassName() === 'Rect' && !e.target.id())) {
-      console.log('Clicked stage background - deselecting');
-      setSelectedElement(null);
-    } else {
-      const id = e.target.id();
-      console.log('Clicked element with id:', id, 'Current selected:', selectedElementId);
-      if (id && id !== selectedElementId) {
-        console.log('Setting selected element to:', id);
-        setSelectedElement(id);
-        console.log('After setSelectedElement, selectedElementId should be:', id);
-      } else if (id && id === selectedElementId) {
-        console.log('Element already selected:', id);
-      } else {
-        console.log('No valid ID found on clicked element');
+    let node: Konva.Node | null = null;
+
+    if (selectedElementId) {
+      try {
+        const safe = escapeId(selectedElementId);
+        node = layer.findOne<Konva.Node>(`#${safe}`) ?? null;
+      } catch {
+        node = null;
       }
     }
-    console.log('=== END STAGE CLICK DEBUG ===');
-  };
+
+    if (node) {
+      tr.nodes([node]);
+      setSelectedNode(node);
+    } else {
+      tr.nodes([]); // <-- never pass undefined
+      setSelectedNode(null);
+    }
+    tr.getLayer()?.batchDraw();
+  }, [selectedElementId, activePane?.elements.length]);
+
+  const handleStagePointerDown = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+      const stage = stageRef.current;
+      if (!stage) return;
+
+      const target = e.target;
+
+      // Ignore clicks on transformer handles to prevent deselection during resize/rotate
+      if (target.findAncestor('Transformer', true)) return;
+
+      // Look for nearest selectable ancestor first, then fall back to ID
+      const selectable = target.findAncestor((node) => 
+        node.name()?.includes('selectable'), true
+      ) || target;
+
+      // If selectable element has an ID and isn't the stage, select it
+      if (selectable !== stage && selectable.id()) {
+        setSelectedElement(selectable.id());
+      } else {
+        // Clicked on stage background - clear selection
+        setSelectedElement(null);
+      }
+    },
+    [setSelectedElement]
+  );
 
   const handleElementChange = (id: string, attrs: any) => {
     updateElement(id, attrs);
@@ -289,10 +300,12 @@ export default function StageCanvas() {
               height={canvasHeight}
               scaleX={stageScale}
               scaleY={stageScale}
-              onClick={handleStageClick}
+              onMouseDown={handleStagePointerDown}
+              onTouchStart={handleStagePointerDown}
+              dragDistance={5}
               data-testid="konva-stage"
             >
-              <Layer>
+              <Layer ref={layerRef} listening>
                 {/* Background */}
                 <Rect
                   width={project.canvas.width}
@@ -318,15 +331,14 @@ export default function StageCanvas() {
 
                 {/* Elements */}
                 {activePane.elements.map(element => {
-                  console.log('Rendering element:', element.type, element.id, 'at', element.x, element.y);
                   if (element.type === 'text') {
                     const textX = element.x - 100;
                     const textY = element.y - 16;
-                    console.log('Text rendered at:', textX, textY, 'with id:', element.id);
                     return (
                       <Text
                         key={element.id}
                         id={element.id}
+                        name="selectable text"
                         text={element.text}
                         x={textX}
                         y={textY}
@@ -344,16 +356,15 @@ export default function StageCanvas() {
                         listening={true}
                         hitStrokeWidth={20}
                         perfectDrawEnabled={false}
-                        onClick={(e) => {
-                          console.log('=== TEXT ELEMENT CLICK ===');
-                          console.log('Text element clicked:', element.id);
-                          console.log('Current selectedElementId:', selectedElementId);
-                          e.cancelBubble = true; // Prevent event bubbling
-                          setSelectedElement(element.id);
-                          console.log('Called setSelectedElement with:', element.id);
-                          console.log('=== END TEXT ELEMENT CLICK ===');
-                        }}
 
+                        onClick={(e) => {
+                          e.cancelBubble = true;
+                          setSelectedElement(element.id);
+                        }}
+                        onTap={(e) => {
+                          e.cancelBubble = true;
+                          setSelectedElement(element.id);
+                        }}
                         onDragEnd={(e) => {
                           handleElementChange(element.id, {
                             x: e.target.x() + 100,
@@ -384,6 +395,7 @@ export default function StageCanvas() {
                       <Image
                         key={element.id}
                         id={element.id}
+                        name="selectable image"
                         image={imageObj}
                         x={element.x - element.width / 2}
                         y={element.y - element.height / 2}
@@ -392,6 +404,14 @@ export default function StageCanvas() {
                         opacity={element.opacity}
                         rotation={element.rotation}
                         draggable
+                        onClick={(e) => {
+                          e.cancelBubble = true;
+                          setSelectedElement(element.id);
+                        }}
+                        onTap={(e) => {
+                          e.cancelBubble = true;
+                          setSelectedElement(element.id);
+                        }}
 
                         onDragEnd={(e) => {
                           handleElementChange(element.id, {
@@ -420,7 +440,18 @@ export default function StageCanvas() {
                 })}
 
                 {/* Transformer */}
-                <Transformer ref={transformerRef} />
+                <Transformer
+                  ref={transformerRef}
+                  rotateEnabled
+                  enabledAnchors={[
+                    'top-left','top-right','bottom-left','bottom-right',
+                    'middle-left','middle-right'
+                  ]}
+                  boundBoxFunc={(oldBox, newBox) => {
+                    if (newBox.width < 5 || newBox.height < 5) return oldBox;
+                    return newBox;
+                  }}
+                />
               </Layer>
             </Stage>
 

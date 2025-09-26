@@ -1,0 +1,173 @@
+StageCanvas.tsx – patch
+
+The snippets below are written to be pasted into your existing file. If your names differ, replace accordingly.
+
+1) Refs & helpers (top of file)
+import Konva from 'konva';
+// ...
+
+const stageRef = useRef<Konva.Stage>(null);
+const layerRef = useRef<Konva.Layer>(null);
+const transformerRef = useRef<Konva.Transformer>(null);
+
+// Safely escape IDs for findOne selectors
+const escapeId = (id: string) => {
+  // @ts-ignore: CSS.escape not in older TS libs
+  return typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+    ? CSS.escape(id)
+    : id.replace(/([ #;?%&,.+*~':"!^$[\]()=>|\/@])/g, '\\$1');
+};
+
+2) Replace your click handler with a pointer‑down handler
+// Old (lines 93–123): handleStageClick(...) — replace entirely
+const handleStagePointerDown = useCallback(
+  (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    // Ignore interaction on transformer handles so we don't clear selection while resizing
+    const parent = e.target?.getParent();
+    if (parent && parent.className === 'Transformer') return;
+
+    // Clicked on empty stage? clear selection
+    if (e.target === stage) {
+      setSelectedElement(null);
+      return;
+    }
+
+    // Find nearest selectable ancestor; rely on .name() not just ids
+    const selectable =
+      e.target.findAncestor('.selectable', true) /* include self */ || e.target;
+
+    const id =
+      typeof selectable.id === 'function'
+        ? selectable.id()
+        : selectable.attrs?.id;
+
+    if (id) {
+      setSelectedElement(id);
+    }
+  },
+  [setSelectedElement]
+);
+
+3) Stage setup (lines 286–294)
+
+Do not scale with CSS (e.g., style={{ transform: ... }}) — that breaks Konva hit testing.
+
+Use pointer‑down events instead of onClick.
+
+Set a small dragDistance to avoid “micro‑drag” suppressing clicks on draggable nodes.
+
+<Stage
+  ref={stageRef}
+  width={canvasWidth}
+  height={canvasHeight}
+  scaleX={stageScale}
+  scaleY={stageScale}
+  // ⬇️ selection is driven from here
+  onMouseDown={handleStagePointerDown}
+  onTouchStart={handleStagePointerDown}
+  // reduce accidental drags that swallow click/tap
+  dragDistance={5}
+/>
+
+4) Transformer effect (lines 78–91)
+
+Root cause for the Konva “get” error is almost always transformer.nodes([undefined]).
+Guard against it and keep it in sync with the current layer.
+
+useEffect(() => {
+  const tr = transformerRef.current;
+  const layer = layerRef.current;
+  if (!tr || !layer) return;
+
+  let node: Konva.Node | null = null;
+
+  if (selectedElementId) {
+    try {
+      const safe = escapeId(selectedElementId);
+      node = layer.findOne<Konva.Node>(`#${safe}`) ?? null;
+    } catch {
+      node = null;
+    }
+  }
+
+  if (node) {
+    tr.nodes([node]);
+  } else {
+    tr.nodes([]); // <-- never pass undefined
+  }
+  tr.getLayer()?.batchDraw();
+}, [selectedElementId, /* also rerun if you re-render elements */ elements.length]);
+
+
+Tip: keep the Transformer on the same Layer as the shapes you want to edit.
+
+<Layer ref={layerRef} listening>
+  {/* ...your shapes... */}
+  <Transformer
+    ref={transformerRef}
+    rotateEnabled
+    enabledAnchors={[
+      'top-left','top-right','bottom-left','bottom-right',
+      'middle-left','middle-right'
+    ]}
+    // optional constraints to avoid weird boxes
+    boundBoxFunc={(oldBox, newBox) => {
+      if (newBox.width < 5 || newBox.height < 5) return oldBox;
+      return newBox;
+    }}
+  />
+</Layer>
+
+5) Text element rendering (lines 330–380)
+
+Give every shape a stable id and a name of selectable.
+
+Do not stop propagation (e.cancelBubble = true) on shape clicks; let Stage handle selection.
+
+You don’t need per‑node onClick for selection anymore.
+
+<Text
+  key={el.id}
+  id={el.id}
+  name="selectable text"
+  listening
+  x={el.x}
+  y={el.y}
+  width={el.width}
+  text={el.text}
+  fontSize={el.fontSize}
+  fontFamily={el.fontFamily}
+  fontStyle={el.fontStyle}
+  align={el.align}
+  draggable={el.draggable ?? true}
+/>
+
+
+If your text is wrapped in a Group, put name="selectable" on the Group as well so findAncestor('.selectable') still works.
+
+Why this fixes your symptoms
+
+“Stage onClick never fires”
+React‑Konva’s onClick can be skipped when a tiny drag is detected or when children stop bubbling. Moving to onMouseDown/onTouchStart at the Stage guarantees you always receive the initial pointer event and can decide selection deterministically. dragDistance={5} also prevents micro‑drags from eating your click.
+
+“selectedElementId stays null”
+The Stage‑level pointer handler sets it from the actual Konva node that was hit (findAncestor('.selectable')), regardless of nesting.
+
+“Cannot read properties of undefined (reading 'get')”
+That’s the Transformer being given undefined. The guarded effect ensures we only call tr.nodes([node]) when node exists; otherwise we pass an empty array.
+
+“Possible coordinate transform issues”
+If you previously scaled the DOM container with CSS (transform: scale(...)), Konva’s hit detection will be off and events won’t align. Using scaleX/scaleY on the Stage preserves correct hit testing.
+
+Quick sanity checks (worth 2 minutes)
+
+No CSS zoom on the Stage container: remove style={{ transform: ... }} or zoom.
+
+Ensure no full‑stage overlay (e.g., guides or selection marquee) is sitting above the canvas with pointer events enabled. If you must keep it, add pointer-events: none;.
+
+Search your codebase for cancelBubble or e.evt.preventDefault() on node clicks; remove unless truly needed.
+
+Verify every selectable node has a unique id.

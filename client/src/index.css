@@ -107,3 +107,26 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* Canvas grid background with pointer events enabled */
+.canvas-grid {
+  background-image: 
+    linear-gradient(rgba(0, 0, 0, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 1;
+}
+
+/* Ensure Konva Stage container allows pointer events */
+.canvas-grid > div {
+  pointer-events: auto !important;
+}
+
+/* Dark mode canvas grid */
+.dark .canvas-grid {
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+}
