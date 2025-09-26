@@ -57,10 +57,10 @@ export default function TopBar() {
   const handleSaveProject = () => {
     if (!project) return;
     
-    downloadProject(project);
+    // Project is automatically saved via Zustand persist middleware
     toast({
       title: "Project saved",
-      description: "Downloaded project file to your computer.",
+      description: "Your project has been saved automatically.",
     });
   };
 
