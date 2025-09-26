@@ -60,6 +60,7 @@ export const brandSchema = z.object({
 export const projectSchema = z.object({
   id: z.string(),
   version: z.literal('v1'),
+  title: z.string().min(1).max(100).default('Untitled Project'),
   canvas: z.object({
     width: z.number().default(1080),
     height: z.number().default(1080),
@@ -71,6 +72,8 @@ export const projectSchema = z.object({
   }),
   panes: z.array(paneSchema),
   activePaneId: z.string().optional(),
+  thumbnail: z.string().optional(), // base64 data URL for preview
+  lastOpenedAt: z.string().datetime().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });
