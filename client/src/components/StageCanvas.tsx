@@ -18,6 +18,10 @@ export default function StageCanvas() {
     toggleSafeArea,
     zoomLevel,
     isManualZoom,
+    setZoom,
+    zoomIn,
+    zoomOut,
+    fitToScreen,
   } = useProject();
 
   const stageRef = useRef<Konva.Stage>(null);
@@ -83,6 +87,47 @@ export default function StageCanvas() {
       resizeObserver.disconnect();
     };
   }, []);
+
+  // Keyboard shortcuts for zoom
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case '=':
+          case '+':
+            e.preventDefault();
+            zoomIn();
+            break;
+          case '-':
+            e.preventDefault();
+            zoomOut();
+            break;
+          case '0':
+            e.preventDefault();
+            fitToScreen();
+            break;
+        }
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const newZoom = Math.min(Math.max(zoomLevel + delta, 0.1), 4.0);
+        setZoom(newZoom);
+      }
+    };
+
+    // Add event listeners
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, [zoomLevel, zoomIn, zoomOut, fitToScreen, setZoom]);
 
   useEffect(() => {
     const tr = transformerRef.current;
