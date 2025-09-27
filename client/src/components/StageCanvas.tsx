@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { Stage, Layer, Text, Image, Rect, Transformer } from 'react-konva';
+import { Stage, Layer, Text, Image, Rect, Transformer, Line } from 'react-konva';
 import { Button } from '@/components/ui/button';
 import { Type, ImagePlus, Shapes, Grid3X3, Focus } from 'lucide-react';
 import { useProject } from '@/store/useProject';
@@ -14,8 +14,8 @@ export default function StageCanvas() {
     setSelectedElement,
     addElement,
     updateElement,
-    showSafeArea,
-    toggleSafeArea,
+    showGrid,
+    toggleGrid,
     zoomLevel,
     isManualZoom,
     setZoom,
@@ -308,9 +308,9 @@ export default function StageCanvas() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={toggleSafeArea}
-                className={showSafeArea ? "bg-accent" : ""}
-                data-testid="button-toggle-safe-area"
+                onClick={toggleGrid}
+                className={showGrid ? "bg-accent" : ""}
+                data-testid="button-toggle-grid"
               >
                 <Grid3X3 className="w-4 h-4" />
               </Button>
@@ -357,19 +357,38 @@ export default function StageCanvas() {
                   listening={false}
                 />
 
-                {/* Safe area overlay */}
-                {showSafeArea && (
-                  <Rect
-                    x={project.canvas.width * 0.1}
-                    y={project.canvas.height * 0.1}
-                    width={project.canvas.width * 0.8}
-                    height={project.canvas.height * 0.8}
-                    stroke="#3b82f6"
-                    strokeWidth={4}
-                    dash={[10, 5]}
-                    opacity={0.6}
-                    listening={false}
-                  />
+                {/* Grid lines */}
+                {showGrid && (
+                  <>
+                    {/* Vertical grid lines */}
+                    {Array.from({ length: 7 }, (_, i) => (
+                      <Line
+                        key={`v-${i}`}
+                        points={[
+                          (project.canvas.width / 6) * i, 0,
+                          (project.canvas.width / 6) * i, project.canvas.height
+                        ]}
+                        stroke="#3b82f6"
+                        strokeWidth={1}
+                        opacity={0.3}
+                        listening={false}
+                      />
+                    ))}
+                    {/* Horizontal grid lines */}
+                    {Array.from({ length: 7 }, (_, i) => (
+                      <Line
+                        key={`h-${i}`}
+                        points={[
+                          0, (project.canvas.height / 6) * i,
+                          project.canvas.width, (project.canvas.height / 6) * i
+                        ]}
+                        stroke="#3b82f6"
+                        strokeWidth={1}
+                        opacity={0.3}
+                        listening={false}
+                      />
+                    ))}
+                  </>
                 )}
 
                 {/* Elements */}

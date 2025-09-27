@@ -9,7 +9,7 @@ import { generatePaneThumbnail } from '../lib/generateThumbnail';
 interface ProjectState {
   project: Project | null;
   selectedElementId: string | null;
-  showSafeArea: boolean;
+  showGrid: boolean;
   isExporting: boolean;
   activeTemplates: Record<string, { templateId: string; originalElements: KonvaElement[] }>;
   
@@ -40,7 +40,7 @@ interface ProjectState {
   
   // Canvas
   updateCanvas: (updates: { width?: number; height?: number; background?: string }) => void;
-  toggleSafeArea: () => void;
+  toggleGrid: () => void;
   
   // Zoom controls
   setZoom: (zoom: number) => void;
@@ -139,7 +139,7 @@ export const useProject = create<ProjectState>()(
     (set, get) => ({
       project: null,
       selectedElementId: null,
-      showSafeArea: false,
+      showGrid: false,
       isExporting: false,
       activeTemplates: {},
       
@@ -458,8 +458,8 @@ export const useProject = create<ProjectState>()(
         });
       },
 
-      toggleSafeArea: () => {
-        set((state) => ({ showSafeArea: !state.showSafeArea }));
+      toggleGrid: () => {
+        set((state) => ({ showGrid: !state.showGrid }));
       },
 
       // Zoom controls
