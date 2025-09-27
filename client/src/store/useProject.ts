@@ -17,6 +17,11 @@ interface ProjectState {
   zoomLevel: number;
   isManualZoom: boolean;
   
+  // Video playback state
+  isPlaying: boolean;
+  currentTime: number;
+  playbackStartTime: number | null;
+  
   // Actions
   createProject: () => void;
   loadProject: (project: Project) => void;
@@ -47,6 +52,16 @@ interface ProjectState {
   zoomIn: () => void;
   zoomOut: () => void;
   fitToScreen: () => void;
+  
+  // Video playback controls
+  playVideo: () => void;
+  pauseVideo: () => void;
+  stopVideo: () => void;
+  seekTo: (time: number) => void;
+  updateCurrentTime: (time: number) => void;
+  getTotalDuration: () => number;
+  getCurrentPaneByTime: (time: number) => { pane: Pane; paneIndex: number } | null;
+  getPlaybackProgress: () => number;
   
   // Brand
   updateBrand: (brand: Partial<Brand>) => void;
@@ -146,6 +161,11 @@ export const useProject = create<ProjectState>()(
       // Default zoom state
       zoomLevel: 1.0, // 100%
       isManualZoom: false,
+      
+      // Default playback state
+      isPlaying: false,
+      currentTime: 0,
+      playbackStartTime: null,
 
       createProject: () => {
         const project = createDefaultProject();
@@ -486,6 +506,98 @@ export const useProject = create<ProjectState>()(
 
       fitToScreen: () => {
         set({ isManualZoom: false });
+      },
+
+      // Video playback controls implementation
+      playVideo: () => {
+        set({ 
+          isPlaying: true, 
+          playbackStartTime: Date.now() - (get().currentTime * 1000)
+        });
+      },
+
+      pauseVideo: () => {
+        set({ isPlaying: false, playbackStartTime: null });
+      },
+
+      stopVideo: () => {
+        set({ 
+          isPlaying: false, 
+          currentTime: 0, 
+          playbackStartTime: null 
+        });
+        // Reset to first pane when stopping
+        const state = get();
+        if (state.project?.panes.length) {
+          get().setActivePane(state.project.panes[0].id);
+        }
+      },
+
+      seekTo: (time: number) => {
+        const totalDuration = get().getTotalDuration();
+        const clampedTime = Math.max(0, Math.min(time, totalDuration));
+        
+        set((state) => ({
+          currentTime: clampedTime,
+          playbackStartTime: state.isPlaying ? Date.now() - (clampedTime * 1000) : null
+        }));
+
+        // Update active pane based on seek time
+        const paneData = get().getCurrentPaneByTime(clampedTime);
+        if (paneData) {
+          get().setActivePane(paneData.pane.id);
+        }
+      },
+
+      updateCurrentTime: (time: number) => {
+        const totalDuration = get().getTotalDuration();
+        if (time >= totalDuration) {
+          // Video finished, stop playback
+          get().stopVideo();
+          return;
+        }
+        
+        set({ currentTime: time });
+        
+        // Update active pane based on current time
+        const paneData = get().getCurrentPaneByTime(time);
+        if (paneData) {
+          const state = get();
+          if (state.project?.activePaneId !== paneData.pane.id) {
+            get().setActivePane(paneData.pane.id);
+          }
+        }
+      },
+
+      getTotalDuration: () => {
+        const state = get();
+        if (!state.project?.panes.length) return 0;
+        return state.project.panes.reduce((total, pane) => total + pane.durationSec, 0);
+      },
+
+      getCurrentPaneByTime: (time: number) => {
+        const state = get();
+        if (!state.project?.panes.length) return null;
+        
+        let accumulatedTime = 0;
+        for (let i = 0; i < state.project.panes.length; i++) {
+          const pane = state.project.panes[i];
+          if (time >= accumulatedTime && time < accumulatedTime + pane.durationSec) {
+            return { pane, paneIndex: i };
+          }
+          accumulatedTime += pane.durationSec;
+        }
+        
+        // If time is at the very end, return the last pane
+        const lastPane = state.project.panes[state.project.panes.length - 1];
+        return { pane: lastPane, paneIndex: state.project.panes.length - 1 };
+      },
+
+      getPlaybackProgress: () => {
+        const state = get();
+        const totalDuration = get().getTotalDuration();
+        if (totalDuration === 0) return 0;
+        return Math.min(state.currentTime / totalDuration, 1);
       },
 
       updateBrand: (brand: Partial<Brand>) => {

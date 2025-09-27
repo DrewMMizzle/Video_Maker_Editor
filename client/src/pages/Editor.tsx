@@ -4,6 +4,7 @@ import PaneStrip from '@/components/PaneStrip';
 import StageCanvas from '@/components/StageCanvas';
 import PropertiesPanel from '@/components/PropertiesPanel';
 import BrandImportModal from '@/components/BrandImportModal';
+import { PlaybackControls } from '@/components/PlaybackControls';
 import { useProject } from '@/store/useProject';
 
 export default function Editor() {
@@ -35,6 +36,8 @@ export default function Editor() {
         <StageCanvas />
         <PropertiesPanel />
       </div>
+      
+      <PlaybackControls />
       
       <BrandImportModal />
     </div>
