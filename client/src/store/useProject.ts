@@ -13,6 +13,10 @@ interface ProjectState {
   isExporting: boolean;
   activeTemplates: Record<string, { templateId: string; originalElements: KonvaElement[] }>;
   
+  // Zoom state
+  zoomLevel: number;
+  isManualZoom: boolean;
+  
   // Actions
   createProject: () => void;
   loadProject: (project: Project) => void;
@@ -37,6 +41,12 @@ interface ProjectState {
   // Canvas
   updateCanvas: (updates: { width?: number; height?: number; background?: string }) => void;
   toggleSafeArea: () => void;
+  
+  // Zoom controls
+  setZoom: (zoom: number) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  fitToScreen: () => void;
   
   // Brand
   updateBrand: (brand: Partial<Brand>) => void;
@@ -132,6 +142,10 @@ export const useProject = create<ProjectState>()(
       showSafeArea: false,
       isExporting: false,
       activeTemplates: {},
+      
+      // Default zoom state
+      zoomLevel: 1.0, // 100%
+      isManualZoom: false,
 
       createProject: () => {
         const project = createDefaultProject();
@@ -302,7 +316,7 @@ export const useProject = create<ProjectState>()(
               panes: state.project.panes.map(pane => ({
                 ...pane,
                 elements: pane.elements.map(el => 
-                  el.id === elementId ? { ...el, ...updates } : el
+                  el.id === elementId ? { ...el, ...updates } as Element : el
                 ),
               })),
               updatedAt: new Date().toISOString(),
@@ -448,6 +462,32 @@ export const useProject = create<ProjectState>()(
         set((state) => ({ showSafeArea: !state.showSafeArea }));
       },
 
+      // Zoom controls
+      setZoom: (zoom: number) => {
+        const clampedZoom = Math.min(Math.max(zoom, 0.1), 4.0); // Clamp between 10% and 400%
+        set({ zoomLevel: clampedZoom, isManualZoom: true });
+      },
+
+      zoomIn: () => {
+        const state = get();
+        const currentZoom = state.zoomLevel;
+        const newZoom = currentZoom < 1 ? currentZoom + 0.1 : currentZoom + 0.25;
+        const clampedZoom = Math.min(newZoom, 4.0);
+        set({ zoomLevel: clampedZoom, isManualZoom: true });
+      },
+
+      zoomOut: () => {
+        const state = get();
+        const currentZoom = state.zoomLevel;
+        const newZoom = currentZoom <= 1 ? currentZoom - 0.1 : currentZoom - 0.25;
+        const clampedZoom = Math.max(newZoom, 0.1);
+        set({ zoomLevel: clampedZoom, isManualZoom: true });
+      },
+
+      fitToScreen: () => {
+        set({ isManualZoom: false });
+      },
+
       updateBrand: (brand: Partial<Brand>) => {
         set((state) => ({
           project: state.project ? {
@@ -481,7 +521,7 @@ export const useProject = create<ProjectState>()(
                 ...state.project,
                 panes: state.project.panes.map(pane => 
                   pane.id === paneId
-                    ? { ...pane, elements: originalElements }
+                    ? { ...pane, elements: originalElements as Element[] }
                     : pane
                 ),
                 updatedAt: new Date().toISOString(),
@@ -515,7 +555,7 @@ export const useProject = create<ProjectState>()(
                 ...state.project,
                 panes: state.project.panes.map(pane => 
                   pane.id === paneId
-                    ? { ...pane, elements: [...originalElements, ...newElements] }
+                    ? { ...pane, elements: [...originalElements, ...newElements] as Element[] }
                     : pane
                 ),
                 updatedAt: new Date().toISOString(),
