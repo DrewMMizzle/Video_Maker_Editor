@@ -1,0 +1,243 @@
+Yep — this is a classic React-Konva gotcha. Konva’s onDblClick can be flaky if either (a) the cursor moves a few pixels between clicks, (b) a drag handler swallows one of the clicks, (c) the second click lands on a different node (e.g., a Transformer handle or a child), or (d) you’re on touch where “double-tap” isn’t a native dblclick.
+
+Below is a drop-in pattern that solves all of that:
+
+Uses your own double-click detection (time + distance + same target).
+
+Works for mouse and touch (double-tap).
+
+Cleanly starts inline editing by placing an absolutely-positioned <textarea> over the text’s screen location.
+
+Temporarily disables node drag/listening while editing, then restores it.
+
+1) Reusable double-click/tap handler
+// useKonvaDoubleClick.ts
+import { useRef, useCallback } from "react";
+import type Konva from "konva";
+
+type Options = {
+  timeoutMs?: number;      // max gap between clicks/taps
+  moveTol?: number;        // max cursor movement between clicks/taps
+  onDouble?: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
+  onSingle?: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void; // optional
+};
+
+export function useKonvaDoubleClick({
+  timeoutMs = 300,
+  moveTol = 6,
+  onDouble,
+  onSingle,
+}: Options) {
+  const lastTimeRef = useRef(0);
+  const lastPosRef = useRef<{ x: number; y: number } | null>(null);
+  const lastTargetIdRef = useRef<string | null>(null);
+  const singleTimerRef = useRef<number | null>(null);
+
+  const clearSingleTimer = () => {
+    if (singleTimerRef.current != null) {
+      window.clearTimeout(singleTimerRef.current);
+      singleTimerRef.current = null;
+    }
+  };
+
+  const handler = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+      const now = performance.now();
+      const stage = e.target.getStage();
+      if (!stage) return;
+
+      const pos = stage.getPointerPosition() || { x: 0, y: 0 };
+      const id = e.target._id?.toString() ?? e.target._id?.toString();
+
+      const dt = now - lastTimeRef.current;
+      const prev = lastPosRef.current;
+
+      const moved =
+        prev ? Math.hypot(pos.x - prev.x, pos.y - prev.y) > moveTol : false;
+      const sameTarget = id && lastTargetIdRef.current === id;
+
+      if (dt < timeoutMs && !moved && sameTarget) {
+        // DOUBLE
+        clearSingleTimer();
+        lastTimeRef.current = 0;
+        lastPosRef.current = null;
+        lastTargetIdRef.current = null;
+        onDouble?.(e);
+      } else {
+        // candidate for SINGLE
+        clearSingleTimer();
+        singleTimerRef.current = window.setTimeout(() => {
+          onSingle?.(e);
+        }, timeoutMs) as unknown as number;
+
+        lastTimeRef.current = now;
+        lastPosRef.current = pos;
+        lastTargetIdRef.current = id;
+      }
+    },
+    [moveTol, onDouble, onSingle, timeoutMs]
+  );
+
+  return handler;
+}
+
+2) Inline editor helper
+// InlineTextEditor.tsx
+import React, { useEffect, useRef } from "react";
+import type Konva from "konva";
+import { Text as KonvaText } from "react-konva";
+
+type Props = {
+  stage: Konva.Stage;
+  textNode: KonvaText;
+  initialValue: string;
+  fontSize?: number;
+  fontFamily?: string;
+  onCommit: (value: string) => void;
+  onCancel?: () => void;
+};
+
+export function startInlineEdit({
+  stage,
+  textNode,
+  initialValue,
+  fontSize,
+  fontFamily,
+  onCommit,
+  onCancel,
+}: Props) {
+  const container = stage.container();
+  const area = document.createElement("textarea");
+  area.value = initialValue;
+
+  // Position the textarea over the text node
+  const tr = textNode.getClientRect({ relativeTo: stage });
+  const stageBox = container.getBoundingClientRect();
+  const scale = stage.scaleX(); // assuming uniform scale
+
+  area.style.position = "absolute";
+  area.style.left = stageBox.left + tr.x * scale + "px";
+  area.style.top = stageBox.top + tr.y * scale + "px";
+  area.style.width = tr.width * scale + "px";
+  area.style.height = tr.height * scale + "px";
+  area.style.margin = "0";
+  area.style.padding = "2px 4px";
+  area.style.border = "1px solid #999";
+  area.style.outline = "none";
+  area.style.resize = "none";
+  area.style.background = "white";
+  area.style.fontSize = `${fontSize ?? textNode.fontSize()}px`;
+  area.style.fontFamily = fontFamily ?? textNode.fontFamily();
+  area.style.lineHeight = "1.2";
+  area.style.zIndex = "1000";
+
+  // Lock node interactions while editing
+  const prevListening = textNode.listening();
+  const prevDraggable = textNode.draggable();
+  textNode.listening(false);
+  textNode.draggable(false);
+
+  document.body.appendChild(area);
+  area.focus();
+  area.select();
+
+  const finish = (commit: boolean) => {
+    area.removeEventListener("keydown", onKey);
+    area.removeEventListener("blur", onBlur);
+    area.remove();
+    textNode.listening(prevListening);
+    textNode.draggable(prevDraggable);
+    if (commit) onCommit(area.value);
+    else onCancel?.();
+    stage.draw();
+  };
+
+  const onKey = (ev: KeyboardEvent) => {
+    if (ev.key === "Enter" && !ev.shiftKey) {
+      ev.preventDefault();
+      finish(true);
+    } else if (ev.key === "Escape") {
+      ev.preventDefault();
+      finish(false);
+    }
+  };
+  const onBlur = () => finish(true);
+
+  area.addEventListener("keydown", onKey);
+  area.addEventListener("blur", onBlur);
+}
+
+3) Use it in your Text node(s)
+// CanvasText.tsx
+import React, { useRef, useState } from "react";
+import { Stage, Layer, Text } from "react-konva";
+import type Konva from "konva";
+import { useKonvaDoubleClick } from "./useKonvaDoubleClick";
+import { startInlineEdit } from "./InlineTextEditor";
+
+export default function CanvasTextExample() {
+  const stageRef = useRef<Konva.Stage>(null);
+  const [value, setValue] = useState("Double-click me to edit");
+  const textRef = useRef<any>(null);
+
+  const handleDouble = (e: any) => {
+    const stage = stageRef.current!;
+    const node = textRef.current!;
+    startInlineEdit({
+      stage,
+      textNode: node,
+      initialValue: value,
+      onCommit: (v) => setValue(v),
+    });
+  };
+
+  const handleSingle = () => {
+    // Optional: select node, show transformer, etc.
+  };
+
+  const handleClick = useKonvaDoubleClick({
+    onDouble: handleDouble,
+    onSingle: handleSingle,
+    timeoutMs: 300,
+    moveTol: 6,
+  });
+
+  return (
+    <Stage
+      ref={stageRef}
+      width={800}
+      height={400}
+      // If you use stage drag, consider increasing dragDistance
+      // to reduce accidental drags that break double-clicks:
+      dragDistance={3}
+    >
+      <Layer>
+        <Text
+          ref={textRef}
+          x={60}
+          y={120}
+          text={value}
+          fontSize={24}
+          draggable
+          // Replace onDblClick with your custom handler
+          onClick={handleClick}
+          onTap={handleClick}     // double-tap on touch
+          onMouseDown={(e) => e.cancelBubble = false}
+          onMouseUp={(e) => e.cancelBubble = false}
+        />
+      </Layer>
+    </Stage>
+  );
+}
+
+Why this works (and why onDblClick didn’t)
+
+Same target check: Both clicks must hit the same Konva node. If the second click lands on a child/transform handle, native dblclick won’t fire; we guard against that.
+
+Movement tolerance: Even tiny cursor movement between clicks can cancel native dblclick; we allow a small moveTol.
+
+Timing control: You decide the threshold (timeoutMs) and can adapt for your users/devices.
+
+Touch-safe: onTap + the same logic gives you double-tap without hacks.
+
+Editing overlay: Absolute <textarea> matches the node’s screen rect, so users feel like they’re editing inline. We also disable node interactions while editing to prevent drag or selection conflicts.
