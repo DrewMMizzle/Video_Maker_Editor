@@ -21,10 +21,41 @@ const ZOOM_PRESETS = [
 ];
 
 export function ZoomControls() {
-  const { zoomLevel, setZoom, zoomIn, zoomOut, fitToScreen } = useProject();
+  const { project, zoomLevel, isManualZoom, setZoom, zoomIn, zoomOut, fitToScreen } = useProject();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const displayZoom = Math.round(zoomLevel * 100);
+  // Calculate auto-fit zoom for display when not in manual mode
+  const calculateAutoFitZoom = () => {
+    if (!project) return 1;
+    
+    // Use a more reliable way to get container dimensions
+    // Estimate based on typical editor layout (this matches StageCanvas calculation)
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // Account for sidebar (~250px), properties panel (~300px), and other UI elements
+    const sidebarWidth = 250;
+    const propertiesWidth = 300;
+    const toolbarHeight = 100;
+    const padding = 64;
+    
+    const availableWidth = viewportWidth - sidebarWidth - propertiesWidth - padding;
+    const availableHeight = viewportHeight - toolbarHeight - padding;
+    
+    const canvasWidth = project.canvas.width;
+    const canvasHeight = project.canvas.height;
+    
+    const scaleX = availableWidth / canvasWidth;
+    const scaleY = availableHeight / canvasHeight;
+    
+    // Return the calculated auto-fit scale
+    return Math.min(scaleX, scaleY, 1);
+  };
+
+  // Display manual zoom level or auto-calculated zoom
+  const displayZoom = isManualZoom 
+    ? Math.round(zoomLevel * 100)
+    : Math.round(calculateAutoFitZoom() * 100);
 
   const handlePresetZoom = (value: number) => {
     setZoom(value);
@@ -68,7 +99,9 @@ export function ZoomControls() {
           <DropdownMenuItem
             onClick={handleFitToScreen}
             data-testid="option-fit-to-screen"
-            className="font-mono text-xs"
+            className={`font-mono text-xs ${
+              !isManualZoom ? 'bg-accent text-accent-foreground' : ''
+            }`}
           >
             <Maximize2 className="mr-2 h-4 w-4" />
             Fit to screen
@@ -79,7 +112,7 @@ export function ZoomControls() {
               onClick={() => handlePresetZoom(preset.value)}
               data-testid={`option-zoom-${preset.value}`}
               className={`font-mono text-xs ${
-                Math.abs(zoomLevel - preset.value) < 0.01
+                isManualZoom && Math.abs(zoomLevel - preset.value) < 0.01
                   ? 'bg-accent text-accent-foreground'
                   : ''
               }`}
