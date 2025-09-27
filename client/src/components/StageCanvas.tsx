@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Type, ImagePlus, Shapes, Grid3X3, Focus } from 'lucide-react';
 import { useProject } from '@/store/useProject';
 import { nanoid } from 'nanoid';
+import { ZoomControls } from '@/components/ZoomControls';
 import Konva from 'konva';
 
 export default function StageCanvas() {
@@ -15,6 +16,8 @@ export default function StageCanvas() {
     updateElement,
     showSafeArea,
     toggleSafeArea,
+    zoomLevel,
+    isManualZoom,
   } = useProject();
 
   const stageRef = useRef<Konva.Stage>(null);
@@ -48,7 +51,8 @@ export default function StageCanvas() {
     return Math.min(scaleX, scaleY, 1); // Cap at 100% to avoid oversizing
   }, [containerSize, project?.canvas.width, project?.canvas.height]);
   
-  const stageScale = calculateOptimalScale();
+  // Use manual zoom when enabled, otherwise use auto-calculated scale
+  const stageScale = isManualZoom ? zoomLevel : calculateOptimalScale();
 
   const activePane = project?.panes.find(p => p.id === project.activePaneId);
 
@@ -254,9 +258,7 @@ export default function StageCanvas() {
             </div>
             
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                {Math.round(stageScale * 100)}%
-              </span>
+              <ZoomControls />
               <div className="h-4 w-px bg-border"></div>
               <Button
                 variant="ghost"
@@ -271,16 +273,12 @@ export default function StageCanvas() {
                 variant="ghost" 
                 size="sm"
                 onClick={() => {
-                  // Trigger container size recalculation to fit canvas
-                  const container = containerRef.current;
-                  if (container) {
-                    setContainerSize({
-                      width: container.clientWidth,
-                      height: container.clientHeight
-                    });
-                  }
+                  // Use fitToScreen for consistency with zoom controls
+                  const { fitToScreen } = useProject.getState();
+                  fitToScreen();
                 }}
                 data-testid="button-fit-canvas"
+                title="Fit to screen"
               >
                 <Focus className="w-4 h-4" />
               </Button>
