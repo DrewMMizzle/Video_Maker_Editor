@@ -33,13 +33,37 @@ export function useKonvaDoubleClick({
       if (!stage) return;
 
       const pos = stage.getPointerPosition() || { x: 0, y: 0 };
-      const id = e.target.id();
+      
+      // Handle clicks on Transformer by finding the underlying selected node
+      let targetNode = e.target;
+      if (e.target.getClassName() === 'Transformer') {
+        // If clicking on transformer, get the first selected node
+        const transformer = e.target as any;
+        const nodes = transformer.nodes();
+        if (nodes && nodes.length > 0) {
+          targetNode = nodes[0];
+        }
+      } else {
+        // For other elements, find the nearest selectable ancestor
+        const selectable = e.target.findAncestor((node: any) => 
+          node.name()?.includes('selectable'), true
+        );
+        if (selectable) {
+          targetNode = selectable;
+        }
+      }
+      
+      const id = targetNode?.id?.() || targetNode?.id || '';
+      
+      // Scale movement tolerance based on stage zoom
+      const scale = stage.scaleX() || 1;
+      const effectiveMoveTol = moveTol / scale;
 
       const dt = now - lastTimeRef.current;
       const prev = lastPosRef.current;
 
       const moved =
-        prev ? Math.hypot(pos.x - prev.x, pos.y - prev.y) > moveTol : false;
+        prev ? Math.hypot(pos.x - prev.x, pos.y - prev.y) > effectiveMoveTol : false;
       const sameTarget = id && lastTargetIdRef.current === id;
 
       if (dt < timeoutMs && !moved && sameTarget) {

@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { projectSchema, brandImportResultSchema } from "@shared/schema";
+import { projectSchema, brandImportResultSchema, assetSchema, insertAssetSchema } from "@shared/schema";
 import { scrapeBrand } from "./services/brand-scraper";
+import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { z } from "zod";
 
 // Helper function to normalize and validate URLs
@@ -107,6 +108,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Asset management endpoints
+  
+  // Get presigned upload URL for asset upload
+  app.post('/api/assets/upload', async (req, res) => {
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      res.json({ uploadURL });
+    } catch (error: any) {
+      console.error('Error generating upload URL:', error);
+      res.status(500).json({ error: 'Failed to generate upload URL' });
+    }
+  });
+
+  // Save asset metadata after successful upload
+  app.post('/api/assets', async (req, res) => {
+    try {
+      const assetData = insertAssetSchema.parse(req.body);
+      
+      // For public file uploading (no auth required), set basic ACL policy
+      const objectStorageService = new ObjectStorageService();
+      const normalizedPath = objectStorageService.normalizeObjectEntityPath(assetData.objectPath);
+      
+      // Set public ACL policy for the uploaded asset
+      try {
+        await objectStorageService.trySetObjectEntityAclPolicy(assetData.objectPath, {
+          owner: 'system', // For now, using 'system' as owner since no auth
+          visibility: 'public',
+        });
+      } catch (error) {
+        console.error('Error setting ACL policy:', error);
+        // Continue even if ACL fails - the file is still uploaded
+      }
+      
+      const asset = await storage.createAsset({
+        ...assetData,
+        objectPath: normalizedPath
+      });
+      
+      res.status(201).json(asset);
+    } catch (error: any) {
+      console.error('Error saving asset:', error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // List all assets
+  app.get('/api/assets', async (req, res) => {
+    try {
+      const assets = await storage.listAssets();
+      res.json(assets);
+    } catch (error: any) {
+      console.error('Error listing assets:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete asset and its storage object
+  app.delete('/api/assets/:id', async (req, res) => {
+    try {
+      const asset = await storage.getAsset(req.params.id);
+      if (!asset) {
+        return res.status(404).json({ error: 'Asset not found' });
+      }
+
+      // Try to delete from object storage
+      try {
+        const objectStorageService = new ObjectStorageService();
+        await objectStorageService.deleteObjectEntity(asset.objectPath);
+      } catch (error) {
+        console.error('Error deleting from object storage:', error);
+        // Continue even if object storage deletion fails
+      }
+
+      // Delete from local storage
+      const deleted = await storage.deleteAsset(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: 'Asset not found' });
+      }
+
+      res.status(204).send();
+    } catch (error: any) {
+      console.error('Error deleting asset:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Serve uploaded objects (public access)
+  app.get('/objects/:objectPath(*)', async (req, res) => {
+    const objectStorageService = new ObjectStorageService();
+    try {
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error('Error accessing object:', error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.sendStatus(404);
+      }
+      return res.sendStatus(500);
     }
   });
 

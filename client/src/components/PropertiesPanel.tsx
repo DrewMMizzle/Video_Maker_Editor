@@ -12,6 +12,7 @@ import { AlignLeft, AlignCenter, AlignRight, MoveUp, MoveDown, Copy, Trash2 } fr
 import { useProject } from '@/store/useProject';
 import { FONT_FAMILIES, FONT_WEIGHTS } from '@/types';
 import BrandPanel from './BrandPanel';
+import LibraryPanel from './LibraryPanel';
 
 export default function PropertiesPanel() {
   const {
@@ -38,10 +39,11 @@ export default function PropertiesPanel() {
     <aside className="w-80 border-l border-border bg-card" data-testid="properties-panel">
       <div className="h-full flex flex-col">
         <Tabs defaultValue="properties" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-3 flex-shrink-0">
+          <TabsList className="grid w-full grid-cols-4 flex-shrink-0">
             <TabsTrigger value="properties" data-testid="tab-properties">Properties</TabsTrigger>
             <TabsTrigger value="document" data-testid="tab-document">Document</TabsTrigger>
             <TabsTrigger value="brand" data-testid="tab-brand">Brand</TabsTrigger>
+            <TabsTrigger value="library" data-testid="tab-library">Library</TabsTrigger>
           </TabsList>
 
           <TabsContent value="properties" className="flex-1 overflow-y-auto p-4 min-h-0">
@@ -72,24 +74,56 @@ export default function PropertiesPanel() {
                         <SelectContent>
                           {FONT_FAMILIES.map(font => (
                             <SelectItem key={font} value={font}>
-                              {font}
+                              <span style={{ fontFamily: font }}>{font}</span>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="font-size">Size</Label>
-                        <Input
-                          id="font-size"
-                          type="number"
-                          value={selectedElement.fontSize}
-                          onChange={(e) => handleElementUpdate({ fontSize: Number(e.target.value) })}
-                          data-testid="input-font-size"
-                        />
+                    <div>
+                      <Label htmlFor="font-size">Size</Label>
+                      <div className="space-y-3 mt-2">
+                        <div className="flex items-center gap-3">
+                          <Input
+                            id="font-size"
+                            type="number"
+                            value={selectedElement.fontSize}
+                            onChange={(e) => handleElementUpdate({ fontSize: Number(e.target.value) })}
+                            className="w-20"
+                            min={8}
+                            max={200}
+                            data-testid="input-font-size"
+                          />
+                          <div className="flex-1">
+                            <Slider
+                              value={[selectedElement.fontSize]}
+                              onValueChange={([value]) => handleElementUpdate({ fontSize: value })}
+                              min={8}
+                              max={200}
+                              step={1}
+                              className="w-full"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-1 flex-wrap">
+                          {[12, 16, 20, 24, 32, 48, 64, 80].map((size) => (
+                            <Button
+                              key={size}
+                              variant={selectedElement.fontSize === size ? "secondary" : "outline"}
+                              size="sm"
+                              onClick={() => handleElementUpdate({ fontSize: size })}
+                              className="text-xs px-2 py-1 h-7"
+                              data-testid={`button-font-size-${size}`}
+                            >
+                              {size}px
+                            </Button>
+                          ))}
+                        </div>
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
                       <div>
                         <Label htmlFor="font-weight">Weight</Label>
                         <Select
@@ -488,6 +522,10 @@ export default function PropertiesPanel() {
 
           <TabsContent value="brand" className="flex-1 overflow-y-auto min-h-0">
             <BrandPanel />
+          </TabsContent>
+
+          <TabsContent value="library" className="flex-1 overflow-y-auto min-h-0">
+            <LibraryPanel />
           </TabsContent>
         </Tabs>
       </div>

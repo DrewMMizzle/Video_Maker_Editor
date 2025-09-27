@@ -1,7 +1,8 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Stage, Layer, Text, Image, Rect, Transformer, Line } from 'react-konva';
 import { Button } from '@/components/ui/button';
-import { Type, ImagePlus, Shapes, Grid3X3, Focus } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Type, ImagePlus, Shapes, Grid3X3, Focus, Upload, FolderOpen, ChevronDown } from 'lucide-react';
 import { useProject } from '@/store/useProject';
 import { nanoid } from 'nanoid';
 import { ZoomControls } from '@/components/ZoomControls';
@@ -281,8 +282,15 @@ export default function StageCanvas() {
     addElement(newText);
   };
 
-  const handleAddImage = () => {
+  const handleAddImageFromFile = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleAddImageFromLibrary = () => {
+    // Switch to the Library tab in the Properties Panel
+    // This is handled by the UI - the user can click on library assets to add them
+    // For now, we could show a toast or do nothing as the Library panel already handles this
+    return;
   };
 
   const handleImageLoad = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -357,15 +365,29 @@ export default function StageCanvas() {
                 <Type className="w-4 h-4 mr-2" />
                 Text
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={handleAddImage}
-                data-testid="button-add-image"
-              >
-                <ImagePlus className="w-4 h-4 mr-2" />
-                Image
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    data-testid="button-add-image"
+                  >
+                    <ImagePlus className="w-4 h-4 mr-2" />
+                    Image
+                    <ChevronDown className="w-3 h-3 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={handleAddImageFromFile} data-testid="menu-upload-new">
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload New
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleAddImageFromLibrary} data-testid="menu-from-library">
+                    <FolderOpen className="w-4 h-4 mr-2" />
+                    From Library
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button 
                 variant="ghost" 
                 size="sm" 

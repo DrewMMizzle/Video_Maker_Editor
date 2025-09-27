@@ -97,6 +97,21 @@ export const brandImportResultSchema = z.object({
   }),
 });
 
+export const assetSchema = z.object({
+  id: z.string(),
+  filename: z.string(),
+  fileType: z.string(), // MIME type like 'image/jpeg', 'image/png'
+  fileSize: z.number(), // Size in bytes
+  uploadedAt: z.string().datetime(),
+  thumbnailUrl: z.string().optional(), // URL to thumbnail version
+  objectPath: z.string(), // Path in object storage like '/objects/uploads/uuid'
+  width: z.number().optional(), // Image width if applicable
+  height: z.number().optional(), // Image height if applicable
+});
+
+export const insertAssetSchema = assetSchema.omit({ id: true, uploadedAt: true });
+export type InsertAsset = z.infer<typeof insertAssetSchema>;
+
 export type ElementBase = z.infer<typeof elementBaseSchema>;
 export type TextElement = z.infer<typeof textElementSchema>;
 export type ImageElement = z.infer<typeof imageElementSchema>;
@@ -106,3 +121,4 @@ export type Pane = z.infer<typeof paneSchema>;
 export type Brand = z.infer<typeof brandSchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type BrandImportResult = z.infer<typeof brandImportResultSchema>;
+export type Asset = z.infer<typeof assetSchema>;
