@@ -5,19 +5,46 @@ import { projectSchema, brandImportResultSchema } from "@shared/schema";
 import { scrapeBrand } from "./services/brand-scraper";
 import { z } from "zod";
 
+// Helper function to normalize and validate URLs
+function normalizeUrl(input: string): string {
+  if (!input || typeof input !== 'string') {
+    throw new Error('Please enter a valid website URL');
+  }
+  
+  let url = input.trim();
+  
+  // Add https:// if no protocol is specified
+  if (!url.match(/^https?:\/\//)) {
+    url = `https://${url}`;
+  }
+  
+  // Validate the URL format
+  try {
+    new URL(url);
+    return url;
+  } catch {
+    throw new Error('Please enter a valid website URL (e.g., google.com or https://google.com)');
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Brand scraping endpoint
   app.get('/api/brand/scrape', async (req, res) => {
     try {
-      const url = z.string().url().parse(req.query.url);
+      const rawUrl = req.query.url;
+      const url = normalizeUrl(rawUrl as string);
       const result = await scrapeBrand(url);
       const validatedResult = brandImportResultSchema.parse(result);
       res.json(validatedResult);
     } catch (error: any) {
       console.error('Brand scraping error:', error);
-      res.status(500).json({ 
+      
+      // Check if it's a URL validation error vs scraping error
+      const isValidationError = error?.message?.includes('valid website URL');
+      
+      res.status(isValidationError ? 400 : 500).json({ 
         error: error?.message || 'Failed to scrape brand',
-        fallback: {
+        fallback: isValidationError ? null : {
           palette: ['#1f2937', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'],
           fonts: { headings: 'Inter', body: 'Inter', sources: [] },
           evidence: { themeColor: null, cssVars: [], googleFonts: [], imagesUsedForPalette: [], screenshotUsed: false }

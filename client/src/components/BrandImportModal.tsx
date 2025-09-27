@@ -27,43 +27,63 @@ export default function BrandImportModal({ open: controlledOpen, onOpenChange }:
   const setOpen = onOpenChange || setIsOpen;
 
   const handleImport = async () => {
-    if (!url.trim()) return;
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) {
+      toast({
+        title: "URL required",
+        description: "Please enter a website URL to import brand colors and fonts.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsImporting(true);
     try {
-      const response = await apiRequest('GET', `/api/brand/scrape?url=${encodeURIComponent(url)}`);
+      const response = await apiRequest('GET', `/api/brand/scrape?url=${encodeURIComponent(trimmedUrl)}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to import brand');
+      }
+      
       const data: BrandImportResult = await response.json();
       
       setPreviewData(data);
       
       toast({
         title: "Brand imported successfully",
-        description: `Found ${data.palette.length} colors and font information.`,
+        description: `Found ${data.palette.length} colors and font information from ${trimmedUrl}.`,
       });
     } catch (error: any) {
       console.error('Brand import error:', error);
+      
+      // Extract the actual error message from the response
+      let errorMessage = error.message || "Unable to import brand. Please check the URL and try again.";
+      
       toast({
         title: "Import failed",
-        description: error.message || "Unable to import brand. Please check the URL and try again.",
+        description: errorMessage,
         variant: "destructive",
       });
       
-      // Set fallback data for demo purposes
-      setPreviewData({
-        palette: ['#1f2937', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'],
-        fonts: {
-          headings: 'Inter',
-          body: 'Inter',
-          sources: [],
-        },
-        evidence: {
-          themeColor: null,
-          cssVars: [],
-          googleFonts: [],
-          imagesUsedForPalette: [],
-          screenshotUsed: false,
-        }
-      });
+      // Only set fallback data if it's not a validation error
+      if (!errorMessage.includes('valid website URL')) {
+        setPreviewData({
+          palette: ['#1f2937', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'],
+          fonts: {
+            headings: 'Inter',
+            body: 'Inter',
+            sources: [],
+          },
+          evidence: {
+            themeColor: null,
+            cssVars: [],
+            googleFonts: [],
+            imagesUsedForPalette: [],
+            screenshotUsed: false,
+          }
+        });
+      }
     } finally {
       setIsImporting(false);
     }
@@ -127,7 +147,7 @@ export default function BrandImportModal({ open: controlledOpen, onOpenChange }:
               <Input
                 id="brand-url"
                 type="url"
-                placeholder="https://example.com"
+                placeholder="Enter URL like google.com or https://stripe.com"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 className="flex-1"
@@ -141,6 +161,9 @@ export default function BrandImportModal({ open: controlledOpen, onOpenChange }:
                 {isImporting ? 'Importing...' : 'Import'}
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Enter any website URL. We'll automatically extract brand colors and fonts. No need to include "https://" - we'll add it for you.
+            </p>
           </div>
 
           {previewData && (
