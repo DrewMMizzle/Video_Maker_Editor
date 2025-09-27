@@ -9,7 +9,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '@/lib/utils';
 import { nanoid } from 'nanoid';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 function SortablePaneItem({ pane, isActive, onSelect, onUpdate, onDuplicate, onDelete }: {
   pane: any;
@@ -19,6 +19,14 @@ function SortablePaneItem({ pane, isActive, onSelect, onUpdate, onDuplicate, onD
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(pane.name);
+
+  // Keep edit value in sync with pane name changes
+  useEffect(() => {
+    setEditValue(pane.name);
+  }, [pane.name]);
+
   const {
     attributes,
     listeners,
@@ -32,6 +40,32 @@ function SortablePaneItem({ pane, isActive, onSelect, onUpdate, onDuplicate, onD
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+  };
+
+  const handleStartEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditing(true);
+    setEditValue(pane.name);
+  };
+
+  const handleSaveEdit = () => {
+    if (editValue.trim() && editValue !== pane.name) {
+      onUpdate({ name: editValue.trim() });
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditValue(pane.name);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveEdit();
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
   };
 
   return (
@@ -55,7 +89,26 @@ function SortablePaneItem({ pane, isActive, onSelect, onUpdate, onDuplicate, onD
         >
           <GripVertical className="w-4 h-4 text-muted-foreground" />
         </div>
-        <span className="text-sm font-medium">{pane.name}</span>
+        {isEditing ? (
+          <input
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={handleSaveEdit}
+            onKeyDown={handleKeyDown}
+            className="text-sm font-medium bg-transparent border border-primary rounded px-1 py-0.5 min-w-0 flex-1"
+            autoFocus
+            data-testid={`input-scene-name-${pane.id}`}
+          />
+        ) : (
+          <span 
+            className="text-sm font-medium cursor-pointer hover:text-primary transition-colors"
+            onDoubleClick={handleStartEdit}
+            data-testid={`text-scene-name-${pane.id}`}
+          >
+            {pane.name}
+          </span>
+        )}
         <span className="text-xs text-muted-foreground ml-auto">{pane.durationSec.toFixed(1)}s</span>
       </div>
 
