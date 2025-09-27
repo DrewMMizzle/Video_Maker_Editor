@@ -40,6 +40,16 @@ export default function StageCanvas() {
   const [selectedNode, setSelectedNode] = useState<Konva.Node | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Text editing state
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+  const [textInputPosition, setTextInputPosition] = useState({ x: 0, y: 0 });
+  const textInputRef = useRef<HTMLInputElement>(null);
+  
+  // Double-click detection state
+  const [lastClickTime, setLastClickTime] = useState(0);
+  const [lastClickedElement, setLastClickedElement] = useState<string | null>(null);
+  
   // Calculate optimal scale to fit canvas in container while maintaining aspect ratio
   const calculateOptimalScale = useCallback(() => {
     const padding = 64; // Reserve space for padding
@@ -59,6 +69,112 @@ export default function StageCanvas() {
   const stageScale = isManualZoom ? zoomLevel : calculateOptimalScale();
 
   const activePane = project?.panes.find(p => p.id === project.activePaneId);
+
+  // Cached canvas for text measurement (performance optimization)
+  const measureCanvasRef = useRef<HTMLCanvasElement>();
+  const getMeasureCanvas = useCallback(() => {
+    if (!measureCanvasRef.current) {
+      measureCanvasRef.current = document.createElement('canvas');
+    }
+    return measureCanvasRef.current;
+  }, []);
+
+  // Calculate text dimensions with proper wrapping support
+  const calculateTextDimensions = useCallback((text: string, fontSize: number, fontFamily: string, fontWeight?: string | number, maxWidth?: number) => {
+    const canvas = getMeasureCanvas();
+    const context = canvas.getContext('2d');
+    if (!context) return { width: 200, height: fontSize * 1.2, shouldWrap: false }; // fallback
+
+    // Include font weight and style for accurate measurement
+    const weight = typeof fontWeight === 'number' && fontWeight > 500 ? 'bold' : 'normal';
+    context.font = `${weight} ${fontSize}px ${fontFamily}`;
+    const metrics = context.measureText(text);
+    
+    const measuredWidth = metrics.width + 40; // Add padding
+    const maxContentWidth = maxWidth || (project?.canvas.width ? project.canvas.width * 0.9 : 1000);
+    const shouldWrap = measuredWidth > maxContentWidth;
+    
+    // Return both measured and constrained widths
+    return {
+      width: shouldWrap ? maxContentWidth : Math.max(measuredWidth, 100),
+      height: fontSize * 1.2, // Base height, will be adjusted for multi-line
+      shouldWrap,
+      measuredWidth
+    };
+  }, [getMeasureCanvas, project?.canvas.width]);
+
+  // Text editing functions
+  const startTextEditing = useCallback((element: any) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const stageBox = stage.container().getBoundingClientRect();
+    const textDims = calculateTextDimensions(element.text, element.fontSize, element.fontFamily, element.fontWeight);
+    
+    // Calculate proper center-based positioning
+    const textX = element.x - (textDims.width / 2);
+    const textY = element.y - (textDims.height / 2);
+    
+    // Calculate position for text input overlay with corrected zoom scaling
+    const absolutePosition = {
+      x: stageBox.left + stage.x() + (textX * stageScale),
+      y: stageBox.top + stage.y() + (textY * stageScale),
+    };
+
+    setEditingTextId(element.id);
+    setEditingText(element.text);
+    setTextInputPosition({
+      ...absolutePosition,
+      width: textDims.width * stageScale,
+      fontSize: element.fontSize * stageScale
+    });
+    
+    // Focus the input after state update
+    setTimeout(() => {
+      textInputRef.current?.focus();
+      textInputRef.current?.select();
+    }, 0);
+  }, [stageScale, calculateTextDimensions]);
+
+  const finishTextEditing = useCallback(() => {
+    if (editingTextId) {
+      updateElement(editingTextId, { text: editingText });
+      setEditingTextId(null);
+      setEditingText('');
+    }
+  }, [editingTextId, editingText, updateElement]);
+
+  const cancelTextEditing = useCallback(() => {
+    setEditingTextId(null);
+    setEditingText('');
+  }, []);
+
+  // Custom double-click detection (more reliable than Konva's onDblClick)
+  const handleTextClick = useCallback((element: any, e: any) => {
+    if (!element) return;
+    
+    const currentTime = Date.now();
+    const doubleClickDelay = 300; // milliseconds
+    
+    // Check if this is a double-click on the same element
+    if (
+      lastClickedElement === element.id &&
+      currentTime - lastClickTime < doubleClickDelay
+    ) {
+      console.log('Double-click detected on text element:', element.id);
+      e.cancelBubble = true;
+      startTextEditing(element);
+      // Reset to prevent triple-click issues
+      setLastClickTime(0);
+      setLastClickedElement(null);
+    } else {
+      // Single click - just select the element
+      e.cancelBubble = true;
+      setSelectedElement(element.id);
+      setLastClickTime(currentTime);
+      setLastClickedElement(element.id);
+    }
+  }, [lastClickTime, lastClickedElement, setSelectedElement, startTextEditing]);
 
   // Container size tracking with ResizeObserver
   useEffect(() => {
@@ -394,8 +510,13 @@ export default function StageCanvas() {
                 {/* Elements */}
                 {activePane.elements.map(element => {
                   if (element.type === 'text') {
-                    const textX = element.x - 100;
-                    const textY = element.y - 16;
+                    const isEditing = editingTextId === element.id;
+                    const textDims = calculateTextDimensions(element.text, element.fontSize, element.fontFamily, element.fontWeight);
+                    
+                    // Calculate proper center-based positioning
+                    const textX = element.x - (textDims.width / 2);
+                    const textY = element.y - (textDims.height / 2);
+                    
                     return (
                       <Text
                         key={element.id}
@@ -409,40 +530,65 @@ export default function StageCanvas() {
                         fontStyle={typeof element.fontWeight === 'number' && element.fontWeight > 500 ? 'bold' : 'normal'}
                         fill={element.color}
                         align={element.align}
-                        width={200}
-                        height={element.fontSize * 1.2}
+                        width={textDims.width}
+                        height={textDims.shouldWrap ? undefined : textDims.height}
                         lineHeight={element.lineHeight}
-                        opacity={element.opacity}
+                        wrap={textDims.shouldWrap ? 'word' : 'none'}
+                        ellipsis={textDims.shouldWrap}
+                        opacity={isEditing ? 0.5 : element.opacity}
                         rotation={element.rotation}
-                        draggable
-                        listening={true}
+                        draggable={!isEditing}
+                        listening={!isEditing}
                         hitStrokeWidth={20}
                         perfectDrawEnabled={false}
 
                         onClick={(e) => {
-                          e.cancelBubble = true;
-                          setSelectedElement(element.id);
+                          if (!isEditing) {
+                            e.cancelBubble = true;
+                            setSelectedElement(element.id);
+                          }
                         }}
                         onTap={(e) => {
+                          if (!isEditing) {
+                            e.cancelBubble = true;
+                            setSelectedElement(element.id);
+                          }
+                        }}
+                        onDblClick={(e) => {
                           e.cancelBubble = true;
-                          setSelectedElement(element.id);
+                          console.log('Double-click detected on text element:', element.id);
+                          startTextEditing(element);
+                        }}
+                        onDblTap={(e) => {
+                          e.cancelBubble = true;
+                          console.log('Double-tap detected on text element:', element.id);
+                          startTextEditing(element);
                         }}
                         onDragEnd={(e) => {
-                          handleElementChange(element.id, {
-                            x: e.target.x() + 100,
-                            y: e.target.y() + 16,
-                          });
+                          if (!isEditing) {
+                            const currentTextDims = calculateTextDimensions(element.text, element.fontSize, element.fontFamily, element.fontWeight);
+                            handleElementChange(element.id, {
+                              x: e.target.x() + (currentTextDims.width / 2),
+                              y: e.target.y() + (currentTextDims.height / 2),
+                            });
+                          }
                         }}
                         onTransformEnd={(e) => {
-                          const node = e.target;
-                          handleElementChange(element.id, {
-                            x: node.x() + 100,
-                            y: node.y() + 16,
-                            rotation: node.rotation(),
-                            fontSize: element.fontSize * node.scaleX(),
-                          });
-                          node.scaleX(1);
-                          node.scaleY(1);
+                          if (!isEditing) {
+                            const node = e.target;
+                            const scale = (node.scaleX() + node.scaleY()) / 2; // Average scale for uniform sizing
+                            const newFontSize = element.fontSize * scale;
+                            const newTextDims = calculateTextDimensions(element.text, newFontSize, element.fontFamily, element.fontWeight);
+                            
+                            handleElementChange(element.id, {
+                              x: node.x() + (newTextDims.width / 2),
+                              y: node.y() + (newTextDims.height / 2),
+                              rotation: node.rotation(),
+                              fontSize: newFontSize,
+                            });
+                            node.scaleX(1);
+                            node.scaleY(1);
+                          }
                         }}
                       />
                     );
@@ -524,6 +670,39 @@ export default function StageCanvas() {
           </div>
         </div>
       </div>
+
+      {/* Text input overlay for inline editing */}
+      {editingTextId && (
+        <input
+          ref={textInputRef}
+          type="text"
+          value={editingText}
+          onChange={(e) => setEditingText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              finishTextEditing();
+            } else if (e.key === 'Escape') {
+              cancelTextEditing();
+            }
+          }}
+          onBlur={finishTextEditing}
+          style={{
+            position: 'absolute',
+            left: textInputPosition.x,
+            top: textInputPosition.y,
+            width: textInputPosition.width || 200,
+            fontSize: textInputPosition.fontSize || 16,
+            zIndex: 1000,
+            border: '2px solid #3b82f6',
+            padding: '4px',
+            background: 'white',
+            fontFamily: 'inherit',
+            outline: 'none',
+            borderRadius: '4px',
+          }}
+          data-testid="input-text-editing"
+        />
+      )}
 
       <input
         ref={fileInputRef}
