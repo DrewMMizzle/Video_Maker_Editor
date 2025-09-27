@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Palette, Download } from 'lucide-react';
 import { useProject } from '@/store/useProject';
 import { FONT_FAMILIES } from '@/types';
-// ColorSwatches import not needed here for now
+import BrandImportModal from '@/components/BrandImportModal';
 
 export default function BrandPanel() {
   const { project, updateBrand } = useProject();
@@ -182,6 +182,12 @@ export default function BrandPanel() {
           </Button>
         </div>
       </div>
+
+      {/* Brand Import Modal */}
+      <BrandImportModal
+        open={showImportModal}
+        onOpenChange={setShowImportModal}
+      />
     </div>
   );
 }
