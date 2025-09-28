@@ -86,6 +86,7 @@ function SortablePaneItem({ pane, isActive, onSelect, onUpdate, onDuplicate, onD
           className="drag-handle cursor-grab active:cursor-grabbing"
           {...attributes}
           {...listeners}
+          data-testid={`drag-handle-${pane.id}`}
         >
           <GripVertical className="w-4 h-4 text-muted-foreground" />
         </div>
@@ -233,11 +234,14 @@ export default function PaneStrip() {
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
 
-    if (active.id !== over.id) {
+    if (active && over && active.id !== over.id) {
       const oldIndex = project!.panes.findIndex(p => p.id === active.id);
       const newIndex = project!.panes.findIndex(p => p.id === over.id);
-      const newOrder = arrayMove(project!.panes, oldIndex, newIndex);
-      reorderPanes(newOrder.map(p => p.id));
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOrder = arrayMove(project!.panes, oldIndex, newIndex);
+        reorderPanes(newOrder.map(p => p.id));
+      }
     }
   };
 
@@ -245,15 +249,18 @@ export default function PaneStrip() {
   if (!project) return null;
 
   return (
-    <aside className="w-64 border-r border-border bg-card" data-testid="pane-strip">
-      <div className="p-4">
+    <aside className="w-64 border-r border-border bg-card flex flex-col h-full" data-testid="pane-strip">
+      <div className="p-4 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold">Scenes</h2>
           <Button size="sm" onClick={addPane} data-testid="button-add-pane">
             <Plus className="w-4 h-4" />
           </Button>
         </div>
+      </div>
 
+      {/* Scrollable scenes container */}
+      <div className="flex-1 overflow-y-auto px-4 pb-2" data-testid="scenes-scrollable-container">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -275,31 +282,31 @@ export default function PaneStrip() {
             </div>
           </SortableContext>
         </DndContext>
+      </div>
 
-        {/* Templates Section */}
-        <div className="mt-6">
-          <h3 className="text-sm font-semibold mb-3">Quick Templates</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {TEMPLATES.map(template => {
-              const isActive = isTemplateActive(template.id);
-              return (
-                <Button
-                  key={template.id}
-                  variant={isActive ? "default" : "outline"}
-                  size="sm"
-                  className={cn(
-                    "p-2 h-auto flex-col text-xs transition-colors",
-                    isActive && "bg-primary text-primary-foreground"
-                  )}
-                  onClick={() => toggleTemplate(template.id)}
-                  data-testid={`button-template-${template.id}`}
-                >
-                  <div className="text-sm mb-1">{template.icon}</div>
-                  <div className="leading-tight">{template.name}</div>
-                </Button>
-              );
-            })}
-          </div>
+      {/* Templates Section - Fixed at bottom */}
+      <div className="p-4 border-t border-border flex-shrink-0">
+        <h3 className="text-sm font-semibold mb-3">Quick Templates</h3>
+        <div className="grid grid-cols-2 gap-2">
+          {TEMPLATES.map(template => {
+            const isActive = isTemplateActive(template.id);
+            return (
+              <Button
+                key={template.id}
+                variant={isActive ? "default" : "outline"}
+                size="sm"
+                className={cn(
+                  "p-2 h-auto flex-col text-xs transition-colors",
+                  isActive && "bg-primary text-primary-foreground"
+                )}
+                onClick={() => toggleTemplate(template.id)}
+                data-testid={`button-template-${template.id}`}
+              >
+                <div className="text-sm mb-1">{template.icon}</div>
+                <div className="leading-tight">{template.name}</div>
+              </Button>
+            );
+          })}
         </div>
       </div>
     </aside>
