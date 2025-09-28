@@ -1,0 +1,156 @@
+Thanks for the screenshot—this “soft / slightly washed + low-dpi” look is exactly what you get when the Konva <Stage>’s backing canvas resolution doesn’t match what you’re drawing on screen (CSS upscaling) plus default canvas sRGB clamping & medium-quality resampling.
+
+Here’s a targeted “fix pack” you can drop in. It tackles the three culprits that cause the look in your image:
+
+Hi-DPI mismatch (blurriness)
+
+Canvas resampling quality (soft edges)
+
+Color-space normalization (slight wash vs thumbnails/Snipping Tool)
+
+1) Make Stage pixels = on-screen pixels (DPR aware)
+
+StageCanvas.tsx
+
+// StageCanvas.tsx
+import React, { useLayoutEffect, useMemo, useRef, useEffect, useState } from "react";
+import { Stage, Layer, Image as KonvaImage } from "react-konva";
+
+export default function StageCanvas({ imgSource, containerId = "canvas-root" }) {
+  const layerRef = useRef<any>(null);
+  const [size, setSize] = useState({ w: 800, h: 450 });
+
+  // Measure the container in CSS pixels
+  useLayoutEffect(() => {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect();
+      setSize({ w: Math.max(1, Math.floor(r.width)), h: Math.max(1, Math.floor(r.height)) });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [containerId]);
+
+  const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+
+  useEffect(() => {
+    // Bump the underlying 2D context quality on the scene canvas
+    const ctx = layerRef.current?.getContext()?._context;
+    if (ctx) {
+      ctx.imageSmoothingEnabled = true;
+      // @ts-ignore: TS doesn’t know this yet
+      ctx.imageSmoothingQuality = "high";
+    }
+  }, [size.w, size.h]);
+
+  return (
+    <div id={containerId} style={{ width: "100%", height: "100%" }}>
+      <Stage
+        width={size.w}                 // CSS size
+        height={size.h}
+        pixelRatio={dpr}               // backing store = CSS * DPR (prevents blur)
+        // DO NOT also scale via CSS; keep Stage CSS and props in sync
+      >
+        <Layer ref={layerRef}>
+          {imgSource && (
+            <KonvaImage
+              image={imgSource}
+              listening={false}
+              imageSmoothingEnabled
+              // Avoid implicit fractional scaling where possible
+              width={size.w}
+              height={size.h}
+            />
+          )}
+        </Layer>
+      </Stage>
+    </div>
+  );
+}
+
+
+Common pitfall fixed here: previously, many apps set <Stage width/height> smaller than the CSS box or scale the Stage via CSS; the browser then stretches the bitmap → blur (what your screenshot looks like).
+
+2) Load images safely and normalize to sRGB before giving them to Konva
+
+useImageLoader.ts
+
+// useImageLoader.ts
+import { useEffect, useState } from "react";
+
+export function useImageLoader(url?: string) {
+  const [state, setState] = useState<{image?: HTMLImageElement | HTMLCanvasElement, status: "idle" | "loading" | "error" | "ready"}>({ status: "idle" });
+
+  useEffect(() => {
+    if (!url) { setState({ status: "idle" }); return; }
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setState({ status: "loading" });
+        const img = new Image();
+        img.crossOrigin = "anonymous";    // prevents taint & random decode diffs
+        (img as any).decoding = "async";
+        img.src = url;
+        await img.decode();
+
+        // Normalize to an sRGB canvas (avoids wide-gamut → washed look on canvas)
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+
+        // Prefer an sRGB context when available
+        // @ts-ignore
+        const ctx: CanvasRenderingContext2D =
+          canvas.getContext("2d", { colorSpace: "srgb" }) ||
+          canvas.getContext("2d")!;
+
+        ctx.imageSmoothingEnabled = true;
+        // @ts-ignore
+        if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0);
+
+        if (!cancelled) setState({ image: canvas, status: "ready" });
+      } catch (e) {
+        if (!cancelled) setState({ status: "error" });
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [url]);
+
+  return state;
+}
+
+
+Handing Konva a pre-drawn sRGB canvas eliminates subtle color shifts you see when <img> (color-managed) and <canvas> (often sRGB-only) disagree.
+
+3) Ensure CSS doesn’t re-scale the Stage bitmap
+
+Wherever you place the Stage, don’t scale it again with CSS transforms or mismatched width/height vs style.
+
+If you need zoom, use Konva’s stage.scale() (or the scale prop) rather than stretching via CSS.
+
+4) Double-check the server isn’t mutating files
+
+In server/routes.ts make sure you stream the exact bytes and correct headers:
+
+res.setHeader("Content-Type", guessMime(objectPath)); // image/jpeg or image/png
+res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+// Avoid any CDN “optimization” that recompresses or strips ICC profiles.
+
+
+If you ever transcode (Sharp/CloudFront/ImageKit), force sRGB and quality ≥ 92 for JPEG; otherwise expect extra wash/softness.
+
+Quick validation steps
+
+Load a known sRGB test image and an iPhone P3 image.
+
+After these patches, both should look the same in the canvas as in your Library <img> and your Snipping Tool.
+
+Open DevTools → Elements → select the Stage <canvas> and check its width/height attributes vs computed CSS size.
+
+They should match DPR-scaled (e.g., CSS 800×450, backing store 1600×900 on DPR=2). If not, blur returns.
+
+Temporarily draw the image at naturalWidth/naturalHeight (no scaling). If that looks razor-sharp, any residual softness you see later is from fractional scaling; snap sizes to integers or pre-rasterize to target size.
