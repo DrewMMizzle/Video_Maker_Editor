@@ -8,7 +8,66 @@ import { nanoid } from 'nanoid';
 import { ZoomControls } from '@/components/ZoomControls';
 import { useKonvaDoubleClick } from '@/hooks/useKonvaDoubleClick';
 import { startInlineEdit } from '@/lib/inlineTextEditor';
+import { useImageLoader } from '@/hooks/useImageLoader';
 import Konva from 'konva';
+
+// Component for rendering images with proper loading state
+function KonvaImageElement({ element, handleElementChange, setSelectedElement }: {
+  element: any;
+  handleElementChange: (id: string, changes: any) => void;
+  setSelectedElement: (id: string) => void;
+}) {
+  const { element: imageElement, loading, error } = useImageLoader(element.src);
+
+  // Don't render anything if image is still loading or failed to load
+  if (loading || error || !imageElement) {
+    return null;
+  }
+
+  return (
+    <Image
+      key={element.id}
+      id={element.id}
+      name="selectable image"
+      image={imageElement}
+      x={element.x - element.width / 2}
+      y={element.y - element.height / 2}
+      width={element.width}
+      height={element.height}
+      opacity={element.opacity}
+      rotation={element.rotation}
+      draggable
+      onClick={(e) => {
+        e.cancelBubble = true;
+        setSelectedElement(element.id);
+      }}
+      onTap={(e) => {
+        e.cancelBubble = true;
+        setSelectedElement(element.id);
+      }}
+      onDragEnd={(e) => {
+        handleElementChange(element.id, {
+          x: e.target.x() + element.width / 2,
+          y: e.target.y() + element.height / 2,
+        });
+      }}
+      onTransformEnd={(e) => {
+        const node = e.target;
+        const newWidth = element.width * node.scaleX();
+        const newHeight = element.height * node.scaleY();
+        handleElementChange(element.id, {
+          x: node.x() + newWidth / 2,
+          y: node.y() + newHeight / 2,
+          width: newWidth,
+          height: newHeight,
+          rotation: node.rotation(),
+        });
+        node.scaleX(1);
+        node.scaleY(1);
+      }}
+    />
+  );
+}
 
 export default function StageCanvas() {
   const {
@@ -562,50 +621,11 @@ export default function StageCanvas() {
                   }
 
                   if (element.type === 'image') {
-                    // Create image object for Konva
-                    const imageObj = new window.Image();
-                    imageObj.src = element.src;
-                    
                     return (
-                      <Image
-                        key={element.id}
-                        id={element.id}
-                        name="selectable image"
-                        image={imageObj}
-                        x={element.x - element.width / 2}
-                        y={element.y - element.height / 2}
-                        width={element.width}
-                        height={element.height}
-                        opacity={element.opacity}
-                        rotation={element.rotation}
-                        draggable
-                        onClick={(e) => {
-                          e.cancelBubble = true;
-                          setSelectedElement(element.id);
-                        }}
-                        onTap={(e) => {
-                          e.cancelBubble = true;
-                          setSelectedElement(element.id);
-                        }}
-
-                        onDragEnd={(e) => {
-                          handleElementChange(element.id, {
-                            x: e.target.x() + element.width / 2,
-                            y: e.target.y() + element.height / 2,
-                          });
-                        }}
-                        onTransformEnd={(e) => {
-                          const node = e.target;
-                          handleElementChange(element.id, {
-                            x: node.x() + element.width / 2,
-                            y: node.y() + element.height / 2,
-                            width: element.width * node.scaleX(),
-                            height: element.height * node.scaleY(),
-                            rotation: node.rotation(),
-                          });
-                          node.scaleX(1);
-                          node.scaleY(1);
-                        }}
+                      <KonvaImageElement
+                        element={element}
+                        handleElementChange={handleElementChange}
+                        setSelectedElement={setSelectedElement}
                       />
                     );
                   }
