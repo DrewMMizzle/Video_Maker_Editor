@@ -156,7 +156,7 @@ export default function LibraryPanel() {
     const newImage = {
       id: nanoid(),
       type: 'image' as const,
-      src: asset.objectPath, // This will be served by our /objects endpoint
+      src: `${window.location.origin}${asset.objectPath}`, // Full URL for reliable loading
       x: 540, // Center of 1080x1080 canvas
       y: 540,
       width: Math.min(asset.width, 400), // Limit initial size
@@ -251,7 +251,7 @@ export default function LibraryPanel() {
                   <div className="flex-1 rounded-md bg-muted flex items-center justify-center overflow-hidden">
                     {asset.fileType.startsWith('image/') ? (
                       <img 
-                        src={asset.objectPath}
+                        src={`${window.location.origin}${asset.objectPath}`}
                         alt={asset.filename}
                         className="w-full h-full object-cover rounded-md"
                         onError={(e) => {
