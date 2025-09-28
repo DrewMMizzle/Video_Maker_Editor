@@ -1,4 +1,14 @@
 import { z } from "zod";
+import { 
+  pgTable, 
+  varchar, 
+  text, 
+  integer, 
+  timestamp, 
+  jsonb,
+  serial 
+} from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
 
 export type RGBHex = `#${string}`;
 
@@ -112,6 +122,46 @@ export const assetSchema = z.object({
 export const insertAssetSchema = assetSchema.omit({ id: true, uploadedAt: true });
 export type InsertAsset = z.infer<typeof insertAssetSchema>;
 
+// Database table definitions
+export const projects = pgTable("projects", {
+  id: varchar("id").primaryKey(),
+  version: varchar("version").notNull().default("v1"),
+  title: varchar("title", { length: 100 }).notNull().default("Untitled Project"),
+  canvas: jsonb("canvas").notNull(),
+  brand: jsonb("brand").notNull(),
+  panes: jsonb("panes").notNull(),
+  activePaneId: varchar("active_pane_id"),
+  thumbnail: text("thumbnail"),
+  lastOpenedAt: timestamp("last_opened_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const assets = pgTable("assets", {
+  id: varchar("id").primaryKey(),
+  filename: varchar("filename").notNull(),
+  fileType: varchar("file_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+  thumbnailUrl: varchar("thumbnail_url"),
+  objectPath: varchar("object_path").notNull(),
+  width: integer("width"),
+  height: integer("height"),
+});
+
+// Create insert schemas using drizzle-zod
+export const insertProjectSchema = createInsertSchema(projects).omit({ 
+  id: true, 
+  createdAt: true, 
+  updatedAt: true 
+});
+
+export const insertAssetSchemaDB = createInsertSchema(assets).omit({ 
+  id: true, 
+  uploadedAt: true 
+});
+
+// Export types
 export type ElementBase = z.infer<typeof elementBaseSchema>;
 export type TextElement = z.infer<typeof textElementSchema>;
 export type ImageElement = z.infer<typeof imageElementSchema>;
@@ -122,3 +172,5 @@ export type Brand = z.infer<typeof brandSchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type BrandImportResult = z.infer<typeof brandImportResultSchema>;
 export type Asset = z.infer<typeof assetSchema>;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type InsertAssetDB = z.infer<typeof insertAssetSchemaDB>;

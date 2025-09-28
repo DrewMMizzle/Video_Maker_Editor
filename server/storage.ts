@@ -1,5 +1,13 @@
-import { type Project, type Asset, type InsertAsset } from "@shared/schema";
+import { 
+  type Project, 
+  type Asset, 
+  type InsertAsset,
+  projects,
+  assets
+} from "@shared/schema";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Project management
@@ -17,114 +25,284 @@ export interface IStorage {
   listAssets(): Promise<Asset[]>;
 }
 
-export class MemStorage implements IStorage {
-  private projects: Map<string, Project>;
-  private assets: Map<string, Asset>;
-  private readonly MAX_PROJECTS = 100;
-  private readonly MAX_ASSETS = 500;
-
-  constructor() {
-    this.projects = new Map();
-    this.assets = new Map();
-  }
-
+export class DatabaseStorage implements IStorage {
+  // Project management
   async getProject(id: string): Promise<Project | undefined> {
-    const project = this.projects.get(id);
-    if (project) {
+    try {
+      const [project] = await db
+        .select()
+        .from(projects)
+        .where(eq(projects.id, id));
+      
+      if (!project) return undefined;
+
       // Update lastOpenedAt when project is accessed
-      const updatedProject = {
-        ...project,
-        lastOpenedAt: new Date().toISOString()
+      const now = new Date();
+      await db
+        .update(projects)
+        .set({ lastOpenedAt: now })
+        .where(eq(projects.id, id));
+
+      // Convert database format to Project type
+      return {
+        id: project.id,
+        version: project.version as "v1",
+        title: project.title,
+        canvas: project.canvas as any,
+        brand: project.brand as any,
+        panes: project.panes as any,
+        activePaneId: project.activePaneId || undefined,
+        thumbnail: project.thumbnail || undefined,
+        lastOpenedAt: now.toISOString(),
+        createdAt: project.createdAt.toISOString(),
+        updatedAt: project.updatedAt.toISOString(),
       };
-      this.projects.set(id, updatedProject);
-      return updatedProject;
+    } catch (error) {
+      console.error('Error getting project:', error);
+      return undefined;
     }
-    return undefined;
   }
 
   async createProject(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project> {
-    // Check storage limit
-    if (this.projects.size >= this.MAX_PROJECTS) {
-      throw new Error(`Storage limit reached. Maximum ${this.MAX_PROJECTS} projects allowed.`);
-    }
-
     const id = randomUUID();
-    const now = new Date().toISOString();
-    const newProject: Project = { 
-      ...project, 
-      id, 
-      createdAt: now, 
-      updatedAt: now,
-      lastOpenedAt: now
+    const now = new Date();
+    
+    const [newProject] = await db
+      .insert(projects)
+      .values({
+        id,
+        version: project.version,
+        title: project.title,
+        canvas: project.canvas,
+        brand: project.brand,
+        panes: project.panes,
+        activePaneId: project.activePaneId,
+        thumbnail: project.thumbnail,
+        lastOpenedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    return {
+      id: newProject.id,
+      version: newProject.version as "v1",
+      title: newProject.title,
+      canvas: newProject.canvas as any,
+      brand: newProject.brand as any,
+      panes: newProject.panes as any,
+      activePaneId: newProject.activePaneId || undefined,
+      thumbnail: newProject.thumbnail || undefined,
+      lastOpenedAt: newProject.lastOpenedAt?.toISOString() || now.toISOString(),
+      createdAt: newProject.createdAt.toISOString(),
+      updatedAt: newProject.updatedAt.toISOString(),
     };
-    this.projects.set(id, newProject);
-    return newProject;
   }
 
   async updateProject(id: string, updates: Partial<Project>): Promise<Project | undefined> {
-    const existing = this.projects.get(id);
-    if (!existing) return undefined;
-    
-    const updated: Project = { 
-      ...existing, 
-      ...updates, 
-      updatedAt: new Date().toISOString() 
-    };
-    this.projects.set(id, updated);
-    return updated;
+    try {
+      const now = new Date();
+      // Convert string dates back to Date objects for database
+      const dbUpdates: any = { ...updates };
+      if (dbUpdates.lastOpenedAt && typeof dbUpdates.lastOpenedAt === 'string') {
+        dbUpdates.lastOpenedAt = new Date(dbUpdates.lastOpenedAt);
+      }
+      
+      const [updated] = await db
+        .update(projects)
+        .set({
+          ...dbUpdates,
+          updatedAt: now,
+        })
+        .where(eq(projects.id, id))
+        .returning();
+
+      if (!updated) return undefined;
+
+      return {
+        id: updated.id,
+        version: updated.version as "v1",
+        title: updated.title,
+        canvas: updated.canvas as any,
+        brand: updated.brand as any,
+        panes: updated.panes as any,
+        activePaneId: updated.activePaneId || undefined,
+        thumbnail: updated.thumbnail || undefined,
+        lastOpenedAt: updated.lastOpenedAt?.toISOString(),
+        createdAt: updated.createdAt.toISOString(),
+        updatedAt: updated.updatedAt.toISOString(),
+      };
+    } catch (error) {
+      console.error('Error updating project:', error);
+      return undefined;
+    }
   }
 
   async deleteProject(id: string): Promise<boolean> {
-    return this.projects.delete(id);
+    try {
+      const result = await db
+        .delete(projects)
+        .where(eq(projects.id, id));
+      return (result.rowCount || 0) > 0;
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      return false;
+    }
   }
 
   async listProjects(): Promise<Project[]> {
-    return Array.from(this.projects.values());
+    try {
+      const projectList = await db
+        .select()
+        .from(projects)
+        .orderBy(desc(projects.updatedAt));
+
+      return projectList.map(project => ({
+        id: project.id,
+        version: project.version as "v1",
+        title: project.title,
+        canvas: project.canvas as any,
+        brand: project.brand as any,
+        panes: project.panes as any,
+        activePaneId: project.activePaneId || undefined,
+        thumbnail: project.thumbnail || undefined,
+        lastOpenedAt: project.lastOpenedAt?.toISOString(),
+        createdAt: project.createdAt.toISOString(),
+        updatedAt: project.updatedAt.toISOString(),
+      }));
+    } catch (error) {
+      console.error('Error listing projects:', error);
+      return [];
+    }
   }
 
   // Asset management methods
   async getAsset(id: string): Promise<Asset | undefined> {
-    return this.assets.get(id);
+    try {
+      const [asset] = await db
+        .select()
+        .from(assets)
+        .where(eq(assets.id, id));
+      
+      if (!asset) return undefined;
+
+      return {
+        id: asset.id,
+        filename: asset.filename,
+        fileType: asset.fileType,
+        fileSize: asset.fileSize,
+        uploadedAt: asset.uploadedAt.toISOString(),
+        thumbnailUrl: asset.thumbnailUrl || undefined,
+        objectPath: asset.objectPath,
+        width: asset.width || undefined,
+        height: asset.height || undefined,
+      };
+    } catch (error) {
+      console.error('Error getting asset:', error);
+      return undefined;
+    }
   }
 
   async createAsset(asset: InsertAsset): Promise<Asset> {
-    // Check storage limit
-    if (this.assets.size >= this.MAX_ASSETS) {
-      throw new Error(`Storage limit reached. Maximum ${this.MAX_ASSETS} assets allowed.`);
-    }
-
     const id = randomUUID();
-    const now = new Date().toISOString();
-    const newAsset: Asset = { 
-      ...asset, 
-      id, 
-      uploadedAt: now
+    const now = new Date();
+    
+    const [newAsset] = await db
+      .insert(assets)
+      .values({
+        id,
+        filename: asset.filename,
+        fileType: asset.fileType,
+        fileSize: asset.fileSize,
+        thumbnailUrl: asset.thumbnailUrl,
+        objectPath: asset.objectPath,
+        width: asset.width,
+        height: asset.height,
+        uploadedAt: now,
+      })
+      .returning();
+
+    return {
+      id: newAsset.id,
+      filename: newAsset.filename,
+      fileType: newAsset.fileType,
+      fileSize: newAsset.fileSize,
+      uploadedAt: newAsset.uploadedAt.toISOString(),
+      thumbnailUrl: newAsset.thumbnailUrl || undefined,
+      objectPath: newAsset.objectPath,
+      width: newAsset.width || undefined,
+      height: newAsset.height || undefined,
     };
-    this.assets.set(id, newAsset);
-    return newAsset;
   }
 
   async updateAsset(id: string, updates: Partial<Asset>): Promise<Asset | undefined> {
-    const existing = this.assets.get(id);
-    if (!existing) return undefined;
-    
-    const updated: Asset = { 
-      ...existing, 
-      ...updates
-    };
-    this.assets.set(id, updated);
-    return updated;
+    try {
+      // Convert string dates back to Date objects for database
+      const dbUpdates: any = { ...updates };
+      if (dbUpdates.uploadedAt && typeof dbUpdates.uploadedAt === 'string') {
+        dbUpdates.uploadedAt = new Date(dbUpdates.uploadedAt);
+      }
+      
+      const [updated] = await db
+        .update(assets)
+        .set(dbUpdates)
+        .where(eq(assets.id, id))
+        .returning();
+
+      if (!updated) return undefined;
+
+      return {
+        id: updated.id,
+        filename: updated.filename,
+        fileType: updated.fileType,
+        fileSize: updated.fileSize,
+        uploadedAt: updated.uploadedAt.toISOString(),
+        thumbnailUrl: updated.thumbnailUrl || undefined,
+        objectPath: updated.objectPath,
+        width: updated.width || undefined,
+        height: updated.height || undefined,
+      };
+    } catch (error) {
+      console.error('Error updating asset:', error);
+      return undefined;
+    }
   }
 
   async deleteAsset(id: string): Promise<boolean> {
-    return this.assets.delete(id);
+    try {
+      const result = await db
+        .delete(assets)
+        .where(eq(assets.id, id));
+      return (result.rowCount || 0) > 0;
+    } catch (error) {
+      console.error('Error deleting asset:', error);
+      return false;
+    }
   }
 
   async listAssets(): Promise<Asset[]> {
-    return Array.from(this.assets.values()).sort((a, b) => 
-      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
-    );
+    try {
+      const assetList = await db
+        .select()
+        .from(assets)
+        .orderBy(desc(assets.uploadedAt));
+
+      return assetList.map(asset => ({
+        id: asset.id,
+        filename: asset.filename,
+        fileType: asset.fileType,
+        fileSize: asset.fileSize,
+        uploadedAt: asset.uploadedAt.toISOString(),
+        thumbnailUrl: asset.thumbnailUrl || undefined,
+        objectPath: asset.objectPath,
+        width: asset.width || undefined,
+        height: asset.height || undefined,
+      }));
+    } catch (error) {
+      console.error('Error listing assets:', error);
+      return [];
+    }
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
