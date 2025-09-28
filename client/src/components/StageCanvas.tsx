@@ -195,6 +195,16 @@ export default function StageCanvas() {
   }, [getMeasureCanvas, project?.canvas.width]);
 
 
+  // Enable high-quality image smoothing after mount
+  useEffect(() => {
+    const sceneCtx = layerRef.current?.getContext()._context;
+    if (sceneCtx) {
+      sceneCtx.imageSmoothingEnabled = true;
+      // @ts-ignore
+      sceneCtx.imageSmoothingQuality = 'high';
+    }
+  }, []);
+
   // Container size tracking with ResizeObserver
   useEffect(() => {
     const container = containerRef.current;
@@ -499,6 +509,7 @@ export default function StageCanvas() {
               height={canvasHeight}
               scaleX={stageScale}
               scaleY={stageScale}
+              pixelRatio={window.devicePixelRatio || 1}
               onMouseDown={handleStagePointerDown}
               onTouchStart={handleStagePointerDown}
               dragDistance={5}

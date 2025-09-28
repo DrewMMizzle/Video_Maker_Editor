@@ -198,12 +198,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve uploaded objects (public access)
+  // Serve uploaded objects (public access) with optimized headers
   app.get('/objects/:objectPath(*)', async (req, res) => {
     const objectStorageService = new ObjectStorageService();
     try {
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
-      objectStorageService.downloadObject(objectFile, res);
+      
+      // Get file metadata for better MIME type detection
+      const [metadata] = await objectFile.getMetadata();
+      const fileName = req.path.split('/').pop() || '';
+      
+      // Detect MIME type from file extension as fallback
+      const detectMime = (path: string): string => {
+        const ext = path.toLowerCase().split('.').pop();
+        switch (ext) {
+          case 'jpg':
+          case 'jpeg':
+            return 'image/jpeg';
+          case 'png':
+            return 'image/png';
+          case 'gif':
+            return 'image/gif';
+          case 'webp':
+            return 'image/webp';
+          case 'svg':
+            return 'image/svg+xml';
+          default:
+            return metadata.contentType || 'application/octet-stream';
+        }
+      };
+      
+      // Set optimized headers
+      res.setHeader('Content-Type', detectMime(fileName));
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Length', metadata.size || '0');
+      
+      // Download with optimized settings
+      await objectStorageService.downloadObject(objectFile, res, 31536000); // 1 year cache
     } catch (error) {
       console.error('Error accessing object:', error);
       if (error instanceof ObjectNotFoundError) {
