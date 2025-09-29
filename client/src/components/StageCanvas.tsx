@@ -9,6 +9,7 @@ import { ZoomControls } from '@/components/ZoomControls';
 import { useKonvaDoubleClick } from '@/hooks/useKonvaDoubleClick';
 import { startInlineEdit } from '@/lib/inlineTextEditor';
 import { useImageLoader } from '@/hooks/useImageLoader';
+import { exportVideoWithKonvaStage } from '@/lib/exportVideo';
 import Konva from 'konva';
 
 // Component for rendering images with proper loading state
@@ -84,6 +85,8 @@ export default function StageCanvas() {
     zoomIn,
     zoomOut,
     fitToScreen,
+    setActivePane,
+    setExportVideoFunction,
   } = useProject();
 
   const stageRef = useRef<Konva.Stage>(null);
@@ -322,6 +325,29 @@ export default function StageCanvas() {
     }
     tr.getLayer()?.batchDraw();
   }, [selectedElementId, activePane?.elements.length]);
+
+  // Set up video export function when stage is ready
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !project || !setExportVideoFunction || !setActivePane) {
+      // Clear export function if stage/project not ready
+      setExportVideoFunction?.(null);
+      return;
+    }
+
+    // Create the export function that binds the current stage and project
+    const exportFunction = async () => {
+      return exportVideoWithKonvaStage(stage, project, setActivePane);
+    };
+
+    // Set the export function in the store
+    setExportVideoFunction(exportFunction);
+
+    // Cleanup function
+    return () => {
+      setExportVideoFunction?.(null);
+    };
+  }, [stageRef.current, project, setExportVideoFunction, setActivePane]);
 
   const handleStagePointerDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
