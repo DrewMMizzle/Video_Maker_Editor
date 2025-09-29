@@ -26,7 +26,8 @@ export default function TopBar() {
     loadProject, 
     updateCanvas,
     isExporting,
-    setExporting
+    setExporting,
+    exportVideoWithStage
   } = useProject();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -364,21 +365,33 @@ export default function TopBar() {
   const handleExportVideo = async () => {
     if (!project || isExporting) return;
 
+    // Check if stage-based export function is available
+    if (!exportVideoWithStage) {
+      toast({
+        title: "Export not ready",
+        description: "Please wait for the canvas to finish loading before exporting.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setExporting(true);
       
       // Auto-save project with fresh thumbnail before exporting
       await autoSaveBeforeExport();
       
-      await exportVideo(project);
+      // Use the new stage-based export function
+      await exportVideoWithStage();
       toast({
         title: "Video exported and saved",
         description: "WebM video file has been downloaded and project has been saved.",
       });
     } catch (error) {
+      console.error('Video export error:', error);
       toast({
         title: "Export failed",
-        description: "Unable to export video. Please try again.",
+        description: error instanceof Error ? error.message : "Unable to export video. Please try again.",
         variant: "destructive",
       });
     } finally {
