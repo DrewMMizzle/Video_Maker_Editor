@@ -228,10 +228,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
       
-      // Set optimized headers
+      // Set optimized headers with CORS support
       res.setHeader('Content-Type', detectMime(fileName));
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       res.setHeader('Content-Length', metadata.size || '0');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
       
       // Download with optimized settings
       await objectStorageService.downloadObject(objectFile, res, 31536000); // 1 year cache

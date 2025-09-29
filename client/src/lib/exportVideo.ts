@@ -1,6 +1,42 @@
 import type { Project } from '@shared/schema';
 import type Konva from 'konva';
 
+// Direct layer composition - much faster than stage.toDataURL()
+function drawStageInto(ctx: CanvasRenderingContext2D, stage: Konva.Stage) {
+  const layers = stage.getLayers();
+  
+  // Composite each layer's canvas directly into export canvas
+  layers.forEach((layer) => {
+    // Access Konva's internal canvas - this is stable and commonly used
+    // @ts-ignore private access to layer canvas
+    const layerCanvas: HTMLCanvasElement = layer.getCanvas()._canvas;
+    if (layerCanvas) {
+      ctx.drawImage(layerCanvas, 0, 0);
+    }
+  });
+}
+
+// Wait for all assets and rendering to be ready
+async function waitForPaneReady(promises: Promise<any>[] = []) {
+  try {
+    // Wait for fonts to be ready
+    await document.fonts.ready;
+  } catch (e) {
+    // Font loading can fail in some browsers, continue anyway
+  }
+  
+  try {
+    // Wait for any provided asset promises
+    await Promise.allSettled(promises);
+  } catch (e) {
+    // Continue even if some assets fail
+  }
+  
+  // Wait for two RAF ticks to ensure rendering is complete
+  await new Promise(r => requestAnimationFrame(() => r(null)));
+  await new Promise(r => requestAnimationFrame(() => r(null)));
+}
+
 export async function exportVideo(project: Project): Promise<void> {
   throw new Error('Direct export not supported. Use exportVideoWithStage from StageCanvas.');
 }
@@ -51,12 +87,25 @@ export async function exportVideoWithKonvaStage(
 
   const chunks: Blob[] = [];
   
+  // Ensure export canvas exactly matches stage dimensions
+  canvas.width = stage.width();
+  canvas.height = stage.height();
+
+  // Wait for initial setup - fonts and first pane assets
+  try {
+    await waitForPaneReady();
+    stage.draw(); // Force initial draw
+  } catch (e) {
+    console.warn('Initial setup warning:', e);
+  }
+  
   return new Promise((resolve, reject) => {
     // Add global timeout to prevent hanging
     const globalTimeout = setTimeout(() => {
       mediaRecorder.stop();
       reject(new Error(`Export timeout after ${timeoutDuration/1000} seconds. Please try again or check for errors.`));
     }, timeoutDuration);
+    
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
         chunks.push(event.data);
@@ -80,21 +129,20 @@ export async function exportVideoWithKonvaStage(
     };
 
     mediaRecorder.onerror = (event: any) => {
+      clearTimeout(globalTimeout);
       reject(new Error('MediaRecorder error: ' + (event.error || 'Unknown error')));
     };
 
     mediaRecorder.start();
 
-    // Render each pane for its duration using Konva stage
-    try {
-      renderPanesSequentiallyWithStage(canvas, ctx, stage, project, setActivePane, 0, () => {
-        mediaRecorder.stop();
-      });
-    } catch (error) {
+    // Render each pane for its duration using optimized approach
+    renderPanesSequentiallyWithStage(canvas, ctx, stage, project, setActivePane, 0, () => {
+      mediaRecorder.stop();
+    }).catch((error) => {
       clearTimeout(globalTimeout);
       mediaRecorder.stop();
       reject(error);
-    }
+    });
   });
 }
 
@@ -116,77 +164,50 @@ async function renderPanesSequentiallyWithStage(
   const duration = pane.durationSec * 1000; // Convert to milliseconds
   const frameDuration = 1000 / 30; // 30 FPS - match MediaRecorder
   
-  // Switch to this pane and wait for render
+  // Switch to this pane and wait for proper rendering
   setActivePane(pane.id);
   
-  // Wait longer for the stage to properly update with all elements
-  await new Promise(resolve => setTimeout(resolve, 200));
+  // Wait for pane to be ready with assets + rendering
+  await waitForPaneReady();
+  stage.draw(); // Force stage to update after pane switch
   
-  // Render frames with proper wall-clock timing to maintain exact duration
+  // Render frames with proper wall-clock timing using direct layer composition
   const renderFramesForPane = async () => {
     const paneStartTime = performance.now();
-    let nextFrameTime = paneStartTime;
     let frameCount = 0;
     
-    while (performance.now() - paneStartTime < duration) {
+    while (true) {
       const currentTime = performance.now();
+      const elapsed = currentTime - paneStartTime;
       
-      // If we're ahead of schedule, wait until next frame time
-      if (currentTime < nextFrameTime) {
-        await new Promise(resolve => setTimeout(resolve, Math.max(0, nextFrameTime - currentTime)));
+      // Check if pane duration is complete
+      if (elapsed >= duration) {
+        break;
       }
       
-      try {
-        // Clear the export canvas and fill with pane background
-        ctx.fillStyle = pane.bgColor;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Get the stage content as a data URL at exact project dimensions
-        const stageDataURL = stage.toDataURL({
-          pixelRatio: 1,
-          width: project.canvas.width,
-          height: project.canvas.height,
-        });
-        
-        // Synchronously draw the stage content
-        await new Promise<void>((resolve, reject) => {
-          const img = new Image();
-          
-          const timeout = setTimeout(() => {
-            console.warn(`Frame ${frameCount} capture timeout, skipping to maintain timing`);
-            resolve(); // Skip frame but continue to maintain timing
-          }, 100); // Reduced timeout to avoid delaying the whole export
-          
-          img.onload = () => {
-            clearTimeout(timeout);
-            try {
-              // Draw directly without scaling - stage already matches canvas dimensions
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-              resolve();
-            } catch (drawError) {
-              console.warn(`Frame ${frameCount} draw error:`, drawError);
-              resolve(); // Continue even if single frame fails
-            }
-          };
-          
-          img.onerror = () => {
-            clearTimeout(timeout);
-            console.warn(`Frame ${frameCount} image load error, skipping`);
-            resolve(); // Skip frame but continue
-          };
-          
-          img.src = stageDataURL;
-        });
-        
-      } catch (error) {
-        console.warn(`Failed to capture frame ${frameCount}:`, error);
-        // Fallback: fill with background color
-        ctx.fillStyle = pane.bgColor;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
+      // Wait for next frame using requestAnimationFrame for smooth pacing
+      await new Promise(resolve => requestAnimationFrame(resolve));
       
-      frameCount++;
-      nextFrameTime += frameDuration; // Schedule next frame at exact interval
+      // Only render frame if we're on the correct frame boundary
+      const expectedFrameNumber = Math.floor(elapsed / frameDuration);
+      if (frameCount <= expectedFrameNumber) {
+        try {
+          // Clear the export canvas and fill with pane background
+          ctx.fillStyle = pane.bgColor;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          
+          // Direct layer composition - much faster than toDataURL()
+          drawStageInto(ctx, stage);
+          
+        } catch (error) {
+          console.warn(`Failed to capture frame ${frameCount}:`, error);
+          // Fallback: fill with background color only
+          ctx.fillStyle = pane.bgColor;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        frameCount++;
+      }
     }
   };
   
