@@ -1,0 +1,144 @@
+Why icons/images go missing
+
+CORS tainting
+If any image/icon (including SVGs, icon-font sprites, remote JPG/PNG) isn’t loaded with crossOrigin="anonymous" and your /objects/... endpoint doesn’t send Access-Control-Allow-Origin: * (or your app’s origin), stage.toDataURL() will silently fail or return a blank frame.
+Fix:
+
+When creating Image() elements for Konva, set img.crossOrigin = 'anonymous'.
+
+Serve assets with correct Content-Type and Access-Control-Allow-Origin.
+
+For web fonts/icon fonts, also wait for document.fonts.ready before capturing.
+
+Fonts not ready at capture time
+Text/icon fonts render one frame late if you don’t wait for font loading.
+Fix: await document.fonts.ready before starting recording.
+
+Why the video “flashes”
+
+Per-frame toDataURL() + re-decode is heavy and racy
+Every frame you call stage.toDataURL(), then create a new Image(), wait for onload, and draw it. If an asset is slow one frame, you draw a blank fallback → visible flashes. Also, a 100ms frame timeout makes you skip frames under load.
+Fix: Stop using toDataURL() per frame. Composite the Konva layer canvases directly into your export canvas. That’s a zero-copy GPU→CPU blit and removes the encode/decode race.
+
+Pane switching isn’t synchronized with rendering
+You setActivePane and just setTimeout(200). If images/filters/transforms haven’t finished, you capture half-rendered frames.
+Fix: After switching panes, wait for:
+
+one or two requestAnimationFrame ticks, and
+
+your image-loader’s “all assets loaded” promise, and
+
+document.fonts.ready.
+
+Stage/Layers may still be drawing
+Konva may be mid-batchDraw when you snapshot.
+Fix: call layer.draw() (or stage.draw()) after the waits, then start frame capture.
+
+Minimal, high-impact patch
+
+A. Compose layers directly (no dataURLs):
+
+function drawStageInto(ctx: CanvasRenderingContext2D, stage: Konva.Stage) {
+  const layers = stage.getLayers(); // Konva.Layer[]
+  // Clear export canvas first
+  // (Callers can fill bg before this if needed)
+  layers.forEach((layer) => {
+    // Konva exposes its internal canvas; the property is "_canvas" on the scene context.
+    // This is a common pattern with Konva and is stable in practice.
+    // @ts-ignore private access
+    const layerCanvas: HTMLCanvasElement = layer.getCanvas()._canvas;
+    ctx.drawImage(layerCanvas, 0, 0); // assumes stage size == export canvas size
+  });
+}
+
+
+B. Replace the per-frame toDataURL() block with:
+
+// before loop: ensure export canvas size == stage size
+canvas.width  = stage.width();
+canvas.height = stage.height();
+
+...
+
+// per frame:
+ctx.fillStyle = pane.bgColor;
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+drawStageInto(ctx, stage); // no async, no flashes
+
+
+C. Properly wait after switching panes:
+
+async function waitForPaneReady(promises: Promise<any>[]) {
+  // fonts + your image loader + two RAF ticks
+  await document.fonts.ready.catch(() => {});
+  await Promise.allSettled(promises).catch(() => {});
+  await new Promise(r => requestAnimationFrame(() => r(null)));
+  await new Promise(r => requestAnimationFrame(() => r(null)));
+  // Then force a draw so layer canvases are up-to-date
+}
+
+...
+setActivePane(pane.id);
+await waitForPaneReady([/* your image loader’s paneReady promise(s) */]);
+stage.draw();
+
+
+D. Don’t skip frames on arbitrary 100ms timeout
+Remove the setTimeout(100) inside your old img.onload path (it’s gone anyway once you drop toDataURL()).
+
+E. Start recording only after everything is ready:
+
+// 1) Ensure fonts + first pane assets ready, then stage.draw()
+await document.fonts.ready.catch(() => {});
+await Promise.allSettled(/* first pane asset promises */);
+stage.draw();
+
+// 2) Then start recorder
+mediaRecorder.start();
+
+Extra guardrails
+
+CORS everywhere: In your image loader (useImageLoader.ts) set:
+
+const img = new Image();
+img.crossOrigin = 'anonymous';
+img.src = url; // served with ACAO header
+
+
+And in server/routes.ts for /objects/:objectPath(*):
+
+Access-Control-Allow-Origin: https://<your-app-origin>
+Content-Type: image/png|image/jpeg|image/svg+xml (correct type)
+
+
+Match sizes exactly: Use stage.width()/height() for the export canvas. Avoid scaling during drawImage to keep things crisp and fast.
+
+Stable FPS pacing: Use performance.now() and requestAnimationFrame to pace frames; do not await setTimeout inside the hot loop. Example:
+
+let prev = performance.now();
+const frameMs = 1000/30;
+while (performance.now() - paneStart < duration) {
+  await new Promise(r => requestAnimationFrame(r));
+  const now = performance.now();
+  if (now - prev >= frameMs) {
+    // draw frame
+    prev = now;
+  }
+}
+
+
+Icon fonts / SVG icons: Prefer inline SVG (already in the layer) over icon fonts to avoid font timing. If you must use icon fonts, preload them with <link rel="preload" as="font" crossorigin>.
+
+TL;DR (action list)
+
+Set crossOrigin='anonymous' on all loaded images and return proper CORS headers from /objects/....
+
+await document.fonts.ready before capture.
+
+Stop using stage.toDataURL() per frame; directly composite Konva layer canvases into your export canvas.
+
+After setActivePane, wait for assets + 2×requestAnimationFrame, then stage.draw() before you start recording and before each pane’s loop.
+
+Pace frames with requestAnimationFrame, not setTimeout(100) fallbacks.
+
+Do those five and the missing assets + flashing should disappear, and exports will be both faster and cleaner. If you want, paste your useImageLoader and the /objects route—I'll mark the exact CORS and font-preload changes.
