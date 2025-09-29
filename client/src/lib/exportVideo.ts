@@ -11,7 +11,12 @@ function drawStageInto(ctx: CanvasRenderingContext2D, stage: Konva.Stage) {
     // @ts-ignore private access to layer canvas
     const layerCanvas: HTMLCanvasElement = layer.getCanvas()._canvas;
     if (layerCanvas) {
-      ctx.drawImage(layerCanvas, 0, 0);
+      // Use 9-arg drawImage for DPR-aware scaling to prevent clipping on high-DPI
+      ctx.drawImage(
+        layerCanvas, 
+        0, 0, layerCanvas.width, layerCanvas.height,  // source dimensions
+        0, 0, ctx.canvas.width, ctx.canvas.height    // destination dimensions
+      );
     }
   });
 }
