@@ -1,5 +1,5 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
-import { Stage, Layer, Text, Image, Rect, Transformer, Line } from 'react-konva';
+import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
+import { Stage, Layer, Text, Image, Rect, Transformer, Line, Group } from 'react-konva';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Type, ImagePlus, Shapes, Grid3X3, Focus, Upload, FolderOpen, ChevronDown } from 'lucide-react';
@@ -158,8 +158,11 @@ export default function StageCanvas() {
     return Math.min(scaleX, scaleY, 1); // Cap at 100% to avoid oversizing
   }, [containerSize, project?.canvas.width, project?.canvas.height]);
   
-  // Use manual zoom when enabled, otherwise use auto-calculated scale
-  const stageScale = isManualZoom ? zoomLevel : calculateOptimalScale();
+  // Track device pixel ratio for crisp rendering (including fractional values)
+  const [dpr, setDpr] = useState(() => window.devicePixelRatio || 1);
+  
+  // Calculate scale for canvas content within the Stage (not Stage scaling)
+  const canvasScale = isManualZoom ? zoomLevel : calculateOptimalScale();
 
   // Cached canvas for text measurement (performance optimization)
   const measureCanvasRef = useRef<HTMLCanvasElement>();
@@ -195,37 +198,57 @@ export default function StageCanvas() {
   }, [getMeasureCanvas, project?.canvas.width]);
 
 
-  // Enable high-quality image smoothing after mount
+  // Monitor device pixel ratio changes (window moves between monitors)
   useEffect(() => {
-    const sceneCtx = layerRef.current?.getContext()._context;
+    const updateDpr = () => setDpr(window.devicePixelRatio || 1);
+    
+    // Listen for DPR changes via resize events or matchMedia
+    window.addEventListener('resize', updateDpr);
+    
+    // More precise DPR change detection using matchMedia
+    const mediaQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    mediaQuery.addEventListener('change', updateDpr);
+    
+    return () => {
+      window.removeEventListener('resize', updateDpr);
+      mediaQuery.removeEventListener('change', updateDpr);
+    };
+  }, []);
+
+  // Enable high-quality image smoothing after mount, size changes, and DPR changes
+  useEffect(() => {
+    const sceneCtx = layerRef.current?.getContext()?._context;
     if (sceneCtx) {
       sceneCtx.imageSmoothingEnabled = true;
       // @ts-ignore
       sceneCtx.imageSmoothingQuality = 'high';
     }
-  }, []);
+  }, [containerSize.width, containerSize.height, dpr]);
 
-  // Container size tracking with ResizeObserver
-  useEffect(() => {
+  // Container size tracking with useLayoutEffect for immediate measurement
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry) {
+        const rect = entry.contentRect;
+        // Measure container in CSS pixels - this will be our Stage size
         setContainerSize({
-          width: entry.contentRect.width,
-          height: entry.contentRect.height
+          width: Math.max(1, Math.floor(rect.width)),
+          height: Math.max(1, Math.floor(rect.height))
         });
       }
     });
 
     resizeObserver.observe(container);
-    
-    // Initial size measurement
+
+    // Initial measurement
+    const rect = container.getBoundingClientRect();
     setContainerSize({
-      width: container.clientWidth,
-      height: container.clientHeight
+      width: Math.max(1, Math.floor(rect.width)),
+      height: Math.max(1, Math.floor(rect.height))
     });
 
     return () => {
@@ -505,24 +528,29 @@ export default function StageCanvas() {
           <div className="relative">
             <Stage
               ref={stageRef}
-              width={canvasWidth}
-              height={canvasHeight}
-              scaleX={stageScale}
-              scaleY={stageScale}
-              pixelRatio={window.devicePixelRatio || 1}
+              width={containerSize.width}
+              height={containerSize.height}
+              pixelRatio={dpr}
               onMouseDown={handleStagePointerDown}
               onTouchStart={handleStagePointerDown}
               dragDistance={5}
               data-testid="konva-stage"
             >
               <Layer ref={layerRef} listening>
-                {/* Background */}
-                <Rect
-                  width={project.canvas.width}
-                  height={project.canvas.height}
-                  fill={activePane.bgColor}
-                  listening={false}
-                />
+                {/* Group with canvas content scaling */}
+                <Group
+                  x={(containerSize.width - project.canvas.width * canvasScale) / 2}
+                  y={(containerSize.height - project.canvas.height * canvasScale) / 2}
+                  scaleX={canvasScale}
+                  scaleY={canvasScale}
+                >
+                  {/* Background */}
+                  <Rect
+                    width={project.canvas.width}
+                    height={project.canvas.height}
+                    fill={activePane.bgColor}
+                    listening={false}
+                  />
 
                 {/* Grid lines */}
                 {showGrid && (
@@ -658,6 +686,7 @@ export default function StageCanvas() {
                     return newBox;
                   }}
                 />
+                </Group>
               </Layer>
             </Stage>
 
