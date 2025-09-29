@@ -68,6 +68,8 @@ interface ProjectState {
   
   // Export
   setExporting: (isExporting: boolean) => void;
+  exportVideoWithStage: (() => Promise<void>) | null;
+  setExportVideoFunction: (exportFn: (() => Promise<void>) | null) => void;
   
   // Templates
   toggleTemplate: (templateId: string) => void;
@@ -156,6 +158,7 @@ export const useProject = create<ProjectState>()(
       selectedElementId: null,
       showGrid: false,
       isExporting: false,
+      exportVideoWithStage: null,
       activeTemplates: {},
       
       // Default zoom state
@@ -612,6 +615,10 @@ export const useProject = create<ProjectState>()(
 
       setExporting: (isExporting: boolean) => {
         set({ isExporting });
+      },
+
+      setExportVideoFunction: (exportFn: (() => Promise<void>) | null) => {
+        set({ exportVideoWithStage: exportFn });
       },
 
       toggleTemplate: (templateId: string) => {
