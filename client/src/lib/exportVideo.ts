@@ -97,63 +97,49 @@ async function renderPanesSequentiallyWithStage(
 
   const pane = project.panes[paneIndex];
   const duration = pane.durationSec * 1000; // Convert to milliseconds
+  const frameDuration = 1000 / 30; // 30 FPS - match MediaRecorder
   
   // Switch to this pane and wait for render
   setActivePane(pane.id);
   
-  // Wait a moment for the stage to update
-  await new Promise(resolve => setTimeout(resolve, 100));
+  // Wait longer for the stage to properly update with all elements
+  await new Promise(resolve => setTimeout(resolve, 200));
   
   const startTime = Date.now();
-  const renderFrame = () => {
-    const elapsed = Date.now() - startTime;
+  
+  // Render frames synchronously at fixed intervals
+  const renderFramesForPane = async () => {
+    let frameCount = 0;
+    const totalFrames = Math.ceil(duration / frameDuration);
     
-    if (elapsed >= duration) {
-      // Move to next pane
-      setTimeout(() => {
-        renderPanesSequentiallyWithStage(canvas, ctx, stage, project, setActivePane, paneIndex + 1, onComplete);
-      }, 16); // Small delay for frame consistency
-      return;
-    }
-
-    // Capture the current stage content
-    try {
-      // Clear the export canvas and fill with pane background
-      ctx.fillStyle = pane.bgColor;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    while (frameCount < totalFrames) {
+      const elapsed = frameCount * frameDuration;
       
-      // Get the stage content as a data URL
-      const stageDataURL = stage.toDataURL({
-        pixelRatio: 1, // Use 1:1 pixel ratio for consistent output
-        width: project.canvas.width,
-        height: project.canvas.height,
-      });
-      
-      // Synchronously draw the stage content using a promise
-      const drawStageContent = () => {
-        return new Promise<void>((resolve, reject) => {
+      try {
+        // Clear the export canvas and fill with pane background
+        ctx.fillStyle = pane.bgColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Get the stage content as a data URL at exact project dimensions
+        const stageDataURL = stage.toDataURL({
+          pixelRatio: 1,
+          width: project.canvas.width,
+          height: project.canvas.height,
+        });
+        
+        // Synchronously draw the stage content - AWAIT this time!
+        await new Promise<void>((resolve, reject) => {
           const img = new Image();
           
-          // Set up timeout to prevent hanging
           const timeout = setTimeout(() => {
-            reject(new Error('Image loading timeout'));
-          }, 1000); // 1 second timeout
+            reject(new Error('Frame capture timeout'));
+          }, 500); // Shorter timeout per frame
           
           img.onload = () => {
             clearTimeout(timeout);
             try {
-              // Calculate scaling and positioning to fit the stage content properly
-              const scaleX = canvas.width / stage.width();
-              const scaleY = canvas.height / stage.height();
-              const scale = Math.min(scaleX, scaleY);
-              
-              const scaledWidth = stage.width() * scale;
-              const scaledHeight = stage.height() * scale;
-              const offsetX = (canvas.width - scaledWidth) / 2;
-              const offsetY = (canvas.height - scaledHeight) / 2;
-              
-              // Draw the scaled stage content onto the export canvas
-              ctx.drawImage(img, offsetX, offsetY, scaledWidth, scaledHeight);
+              // Draw directly without scaling - stage already matches canvas dimensions
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
               resolve();
             } catch (drawError) {
               reject(drawError);
@@ -162,30 +148,29 @@ async function renderPanesSequentiallyWithStage(
           
           img.onerror = () => {
             clearTimeout(timeout);
-            reject(new Error('Failed to load stage image'));
+            reject(new Error('Failed to load frame image'));
           };
           
           img.src = stageDataURL;
         });
-      };
-      
-      // Await the image drawing (but don't block the frame loop)
-      drawStageContent().catch((error) => {
-        console.warn('Failed to draw stage content:', error);
-        // Fallback: just fill with background color
+        
+      } catch (error) {
+        console.warn(`Failed to capture frame ${frameCount}:`, error);
+        // Fallback: fill with background color
         ctx.fillStyle = pane.bgColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-      });
+      }
       
-    } catch (error) {
-      console.warn('Failed to capture stage content:', error);
-      // Fallback: just fill with background color
-      ctx.fillStyle = pane.bgColor;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      frameCount++;
+      
+      // Small delay between frames to ensure MediaRecorder captures
+      await new Promise(resolve => setTimeout(resolve, 16));
     }
-
-    requestAnimationFrame(renderFrame);
   };
-
-  renderFrame();
+  
+  // Render all frames for this pane
+  await renderFramesForPane();
+  
+  // Move to next pane
+  renderPanesSequentiallyWithStage(canvas, ctx, stage, project, setActivePane, paneIndex + 1, onComplete);
 }
