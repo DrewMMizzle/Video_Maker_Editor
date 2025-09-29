@@ -107,6 +107,10 @@ export class DatabaseStorage implements IStorage {
       if (dbUpdates.lastOpenedAt && typeof dbUpdates.lastOpenedAt === 'string') {
         dbUpdates.lastOpenedAt = new Date(dbUpdates.lastOpenedAt);
       }
+      if (dbUpdates.createdAt && typeof dbUpdates.createdAt === 'string') {
+        dbUpdates.createdAt = new Date(dbUpdates.createdAt);
+      }
+      // Note: updatedAt is always set to now, so we don't need to convert it
       
       const [updated] = await db
         .update(projects)

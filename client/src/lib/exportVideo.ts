@@ -19,6 +19,10 @@ export async function exportVideoWithKonvaStage(
     throw new Error('Video recording is not supported in this browser');
   }
 
+  // Calculate total expected duration and add safety margin
+  const totalDuration = project.panes.reduce((acc, pane) => acc + pane.durationSec, 0);
+  const timeoutDuration = Math.max(totalDuration * 1000 * 2, 30000); // 2x expected time or 30s minimum
+
   // Create a canvas that matches the project dimensions
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -37,6 +41,11 @@ export async function exportVideoWithKonvaStage(
   const chunks: Blob[] = [];
   
   return new Promise((resolve, reject) => {
+    // Add global timeout to prevent hanging
+    const globalTimeout = setTimeout(() => {
+      mediaRecorder.stop();
+      reject(new Error(`Export timeout after ${timeoutDuration/1000} seconds. Please try again or check for errors.`));
+    }, timeoutDuration);
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
         chunks.push(event.data);
@@ -44,6 +53,7 @@ export async function exportVideoWithKonvaStage(
     };
 
     mediaRecorder.onstop = () => {
+      clearTimeout(globalTimeout); // Clear the timeout when export completes
       const blob = new Blob(chunks, { type: 'video/webm' });
       const url = URL.createObjectURL(blob);
       
@@ -119,23 +129,53 @@ async function renderPanesSequentiallyWithStage(
         height: project.canvas.height,
       });
       
-      // Create an image from the stage data and draw it onto the export canvas
-      const img = new Image();
-      img.onload = () => {
-        // Calculate scaling and positioning to fit the stage content properly
-        const scaleX = canvas.width / stage.width();
-        const scaleY = canvas.height / stage.height();
-        const scale = Math.min(scaleX, scaleY);
-        
-        const scaledWidth = stage.width() * scale;
-        const scaledHeight = stage.height() * scale;
-        const offsetX = (canvas.width - scaledWidth) / 2;
-        const offsetY = (canvas.height - scaledHeight) / 2;
-        
-        // Draw the scaled stage content onto the export canvas
-        ctx.drawImage(img, offsetX, offsetY, scaledWidth, scaledHeight);
+      // Synchronously draw the stage content using a promise
+      const drawStageContent = () => {
+        return new Promise<void>((resolve, reject) => {
+          const img = new Image();
+          
+          // Set up timeout to prevent hanging
+          const timeout = setTimeout(() => {
+            reject(new Error('Image loading timeout'));
+          }, 1000); // 1 second timeout
+          
+          img.onload = () => {
+            clearTimeout(timeout);
+            try {
+              // Calculate scaling and positioning to fit the stage content properly
+              const scaleX = canvas.width / stage.width();
+              const scaleY = canvas.height / stage.height();
+              const scale = Math.min(scaleX, scaleY);
+              
+              const scaledWidth = stage.width() * scale;
+              const scaledHeight = stage.height() * scale;
+              const offsetX = (canvas.width - scaledWidth) / 2;
+              const offsetY = (canvas.height - scaledHeight) / 2;
+              
+              // Draw the scaled stage content onto the export canvas
+              ctx.drawImage(img, offsetX, offsetY, scaledWidth, scaledHeight);
+              resolve();
+            } catch (drawError) {
+              reject(drawError);
+            }
+          };
+          
+          img.onerror = () => {
+            clearTimeout(timeout);
+            reject(new Error('Failed to load stage image'));
+          };
+          
+          img.src = stageDataURL;
+        });
       };
-      img.src = stageDataURL;
+      
+      // Await the image drawing (but don't block the frame loop)
+      drawStageContent().catch((error) => {
+        console.warn('Failed to draw stage content:', error);
+        // Fallback: just fill with background color
+        ctx.fillStyle = pane.bgColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      });
       
     } catch (error) {
       console.warn('Failed to capture stage content:', error);
