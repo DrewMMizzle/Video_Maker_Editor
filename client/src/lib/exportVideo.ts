@@ -1,6 +1,15 @@
 import type { Project } from '@shared/schema';
+import type Konva from 'konva';
 
 export async function exportVideo(project: Project): Promise<void> {
+  throw new Error('Direct export not supported. Use exportVideoWithStage from StageCanvas.');
+}
+
+export async function exportVideoWithKonvaStage(
+  stage: Konva.Stage,
+  project: Project,
+  setActivePane: (paneId: string) => void
+): Promise<void> {
   if (!project.panes.length) {
     throw new Error('No scenes to export');
   }
@@ -10,6 +19,7 @@ export async function exportVideo(project: Project): Promise<void> {
     throw new Error('Video recording is not supported in this browser');
   }
 
+  // Create a canvas that matches the project dimensions
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   if (!ctx) {
@@ -54,17 +64,19 @@ export async function exportVideo(project: Project): Promise<void> {
 
     mediaRecorder.start();
 
-    // Render each pane for its duration
-    renderPanesSequentially(ctx, canvas, project, 0, () => {
+    // Render each pane for its duration using Konva stage
+    renderPanesSequentiallyWithStage(canvas, ctx, stage, project, setActivePane, 0, () => {
       mediaRecorder.stop();
     });
   });
 }
 
-async function renderPanesSequentially(
-  ctx: CanvasRenderingContext2D,
+async function renderPanesSequentiallyWithStage(
   canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+  stage: Konva.Stage,
   project: Project,
+  setActivePane: (paneId: string) => void,
   paneIndex: number,
   onComplete: () => void
 ) {
@@ -76,6 +88,12 @@ async function renderPanesSequentially(
   const pane = project.panes[paneIndex];
   const duration = pane.durationSec * 1000; // Convert to milliseconds
   
+  // Switch to this pane and wait for render
+  setActivePane(pane.id);
+  
+  // Wait a moment for the stage to update
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
   const startTime = Date.now();
   const renderFrame = () => {
     const elapsed = Date.now() - startTime;
@@ -83,59 +101,48 @@ async function renderPanesSequentially(
     if (elapsed >= duration) {
       // Move to next pane
       setTimeout(() => {
-        renderPanesSequentially(ctx, canvas, project, paneIndex + 1, onComplete);
+        renderPanesSequentiallyWithStage(canvas, ctx, stage, project, setActivePane, paneIndex + 1, onComplete);
       }, 16); // Small delay for frame consistency
       return;
     }
 
-    // Clear canvas
-    ctx.fillStyle = pane.bgColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Render elements
-    pane.elements.forEach(element => {
-      ctx.save();
+    // Capture the current stage content
+    try {
+      // Clear the export canvas and fill with pane background
+      ctx.fillStyle = pane.bgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      ctx.globalAlpha = element.opacity;
-      ctx.translate(element.x, element.y);
-      ctx.rotate((element.rotation * Math.PI) / 180);
-
-      if (element.type === 'text') {
-        ctx.fillStyle = element.color;
-        ctx.font = `${element.fontWeight} ${element.fontSize}px ${element.fontFamily}`;
-        ctx.textAlign = element.align as CanvasTextAlign;
-        ctx.textBaseline = 'middle';
-        
-        // Handle background
-        if (element.bgColor) {
-          const lines = element.text.split('\n');
-          const lineHeight = element.fontSize * element.lineHeight;
-          const totalHeight = lines.length * lineHeight;
-          const maxWidth = Math.max(...lines.map(line => ctx.measureText(line).width));
-          
-          ctx.fillStyle = element.bgColor;
-          ctx.fillRect(
-            element.align === 'center' ? -maxWidth / 2 - element.padding : 
-            element.align === 'right' ? -maxWidth - element.padding : -element.padding,
-            -totalHeight / 2 - element.padding,
-            maxWidth + element.padding * 2,
-            totalHeight + element.padding * 2
-          );
-        }
-
-        // Render text
-        ctx.fillStyle = element.color;
-        const lines = element.text.split('\n');
-        const lineHeight = element.fontSize * element.lineHeight;
-        const startY = -(lines.length - 1) * lineHeight / 2;
-        
-        lines.forEach((line, index) => {
-          ctx.fillText(line, 0, startY + index * lineHeight);
-        });
-      }
+      // Get the stage content as a data URL
+      const stageDataURL = stage.toDataURL({
+        pixelRatio: 1, // Use 1:1 pixel ratio for consistent output
+        width: project.canvas.width,
+        height: project.canvas.height,
+      });
       
-      ctx.restore();
-    });
+      // Create an image from the stage data and draw it onto the export canvas
+      const img = new Image();
+      img.onload = () => {
+        // Calculate scaling and positioning to fit the stage content properly
+        const scaleX = canvas.width / stage.width();
+        const scaleY = canvas.height / stage.height();
+        const scale = Math.min(scaleX, scaleY);
+        
+        const scaledWidth = stage.width() * scale;
+        const scaledHeight = stage.height() * scale;
+        const offsetX = (canvas.width - scaledWidth) / 2;
+        const offsetY = (canvas.height - scaledHeight) / 2;
+        
+        // Draw the scaled stage content onto the export canvas
+        ctx.drawImage(img, offsetX, offsetY, scaledWidth, scaledHeight);
+      };
+      img.src = stageDataURL;
+      
+    } catch (error) {
+      console.warn('Failed to capture stage content:', error);
+      // Fallback: just fill with background color
+      ctx.fillStyle = pane.bgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
     requestAnimationFrame(renderFrame);
   };
