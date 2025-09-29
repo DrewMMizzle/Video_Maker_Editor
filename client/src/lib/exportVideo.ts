@@ -34,9 +34,20 @@ export async function exportVideoWithKonvaStage(
   canvas.height = project.canvas.height;
 
   const stream = canvas.captureStream(30); // 30 FPS
-  const mediaRecorder = new MediaRecorder(stream, {
-    mimeType: 'video/webm;codecs=vp9',
-  });
+  
+  // Choose best supported codec with fallback
+  let mimeType = 'video/webm;codecs=vp9';
+  if (!MediaRecorder.isTypeSupported(mimeType)) {
+    if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+      mimeType = 'video/webm;codecs=vp8';
+    } else if (MediaRecorder.isTypeSupported('video/webm')) {
+      mimeType = 'video/webm';
+    } else {
+      mimeType = ''; // Use browser default
+    }
+  }
+  
+  const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
 
   const chunks: Blob[] = [];
   
@@ -75,9 +86,15 @@ export async function exportVideoWithKonvaStage(
     mediaRecorder.start();
 
     // Render each pane for its duration using Konva stage
-    renderPanesSequentiallyWithStage(canvas, ctx, stage, project, setActivePane, 0, () => {
+    try {
+      renderPanesSequentiallyWithStage(canvas, ctx, stage, project, setActivePane, 0, () => {
+        mediaRecorder.stop();
+      });
+    } catch (error) {
+      clearTimeout(globalTimeout);
       mediaRecorder.stop();
-    });
+      reject(error);
+    }
   });
 }
 
@@ -105,15 +122,19 @@ async function renderPanesSequentiallyWithStage(
   // Wait longer for the stage to properly update with all elements
   await new Promise(resolve => setTimeout(resolve, 200));
   
-  const startTime = Date.now();
-  
-  // Render frames synchronously at fixed intervals
+  // Render frames with proper wall-clock timing to maintain exact duration
   const renderFramesForPane = async () => {
+    const paneStartTime = performance.now();
+    let nextFrameTime = paneStartTime;
     let frameCount = 0;
-    const totalFrames = Math.ceil(duration / frameDuration);
     
-    while (frameCount < totalFrames) {
-      const elapsed = frameCount * frameDuration;
+    while (performance.now() - paneStartTime < duration) {
+      const currentTime = performance.now();
+      
+      // If we're ahead of schedule, wait until next frame time
+      if (currentTime < nextFrameTime) {
+        await new Promise(resolve => setTimeout(resolve, Math.max(0, nextFrameTime - currentTime)));
+      }
       
       try {
         // Clear the export canvas and fill with pane background
@@ -127,13 +148,14 @@ async function renderPanesSequentiallyWithStage(
           height: project.canvas.height,
         });
         
-        // Synchronously draw the stage content - AWAIT this time!
+        // Synchronously draw the stage content
         await new Promise<void>((resolve, reject) => {
           const img = new Image();
           
           const timeout = setTimeout(() => {
-            reject(new Error('Frame capture timeout'));
-          }, 500); // Shorter timeout per frame
+            console.warn(`Frame ${frameCount} capture timeout, skipping to maintain timing`);
+            resolve(); // Skip frame but continue to maintain timing
+          }, 100); // Reduced timeout to avoid delaying the whole export
           
           img.onload = () => {
             clearTimeout(timeout);
@@ -142,13 +164,15 @@ async function renderPanesSequentiallyWithStage(
               ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
               resolve();
             } catch (drawError) {
-              reject(drawError);
+              console.warn(`Frame ${frameCount} draw error:`, drawError);
+              resolve(); // Continue even if single frame fails
             }
           };
           
           img.onerror = () => {
             clearTimeout(timeout);
-            reject(new Error('Failed to load frame image'));
+            console.warn(`Frame ${frameCount} image load error, skipping`);
+            resolve(); // Skip frame but continue
           };
           
           img.src = stageDataURL;
@@ -162,9 +186,7 @@ async function renderPanesSequentiallyWithStage(
       }
       
       frameCount++;
-      
-      // Small delay between frames to ensure MediaRecorder captures
-      await new Promise(resolve => setTimeout(resolve, 16));
+      nextFrameTime += frameDuration; // Schedule next frame at exact interval
     }
   };
   
