@@ -62,3 +62,31 @@ Preferred communication style: Simple, everyday language.
 - **Deployment**: Replit-optimized with cartographer and dev banner plugins
 - **Video Export**: Browser-native MediaRecorder API for WebM video generation
 - **File Handling**: Browser File API for image uploads and project import/export
+
+## Testing Infrastructure
+
+### Mock Storage System
+- **Test Framework**: Playwright for end-to-end browser testing
+- **API Mocking**: Route interception using Playwright's `page.route()` to prevent test data from polluting the real library
+- **Storage Isolation**: All test operations use in-memory mock storage (Map-based) instead of PostgreSQL
+- **Mock Endpoints**: Complete mocking of `/api/projects`, `/api/assets`, and `/api/brand/scrape` endpoints
+- **Test Utilities**: `MockApiHelper` class in `tests/utils/mockApi.ts` handles all API interception and mock data management
+
+### Test Organization
+- **Test Directory**: `tests/` contains all Playwright test files
+- **Configuration**: `playwright.config.ts` with Chromium browser setup and auto-start dev server
+- **Example Tests**: `tests/example.spec.ts` demonstrates mock storage usage patterns
+- **Documentation**: `tests/README.md` provides comprehensive guide for writing new tests
+
+### Key Testing Features
+1. **Automatic Setup**: `mockApi.setupMocks()` intercepts all API calls before tests run
+2. **Pre-population**: `mockApi.addMockProject()` and `mockApi.addMockAsset()` for seeding test data
+3. **Verification**: `mockApi.getMockProjects()` and `mockApi.getMockAssets()` for assertions
+4. **Cleanup**: `mockApi.clearMocks()` resets state between tests
+5. **Isolated Execution**: Tests never touch the real database or project library
+
+### Benefits
+- ✅ **No Library Pollution**: Test projects stay in mock storage, real library remains clean
+- ✅ **Faster Tests**: No database roundtrips, all operations are in-memory
+- ✅ **Reliable Tests**: Same mock data every run, no flaky tests from external dependencies
+- ✅ **Safe Testing**: Can't accidentally corrupt production data or user projects
