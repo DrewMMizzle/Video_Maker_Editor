@@ -223,11 +223,17 @@ export const useProject = create<ProjectState>()(
         const pane = state.project.panes.find(p => p.id === paneId);
         if (!pane) return;
 
+        // Deep copy elements to prevent any shared references
         const duplicatedPane: Pane = {
           ...pane,
           id: nanoid(),
           name: `${pane.name} (Copy)`,
-          elements: pane.elements.map(el => ({ ...el, id: nanoid() })),
+          elements: pane.elements.map(el => {
+            // Create a deep copy and assign new ID
+            const elementCopy = JSON.parse(JSON.stringify(el));
+            elementCopy.id = nanoid();
+            return elementCopy;
+          }),
         };
 
         set({

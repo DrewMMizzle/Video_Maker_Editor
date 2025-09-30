@@ -111,6 +111,26 @@ export default function StageCanvas() {
   // Get active pane first (needed for hook)
   const activePane = project?.panes.find(p => p.id === project.activePaneId);
 
+  // Clean up old text refs when pane changes to prevent stale refs
+  useEffect(() => {
+    if (!activePane) return;
+    
+    // Only clean up refs when switching panes, not when elements change
+    // This prevents premature cleanup during element updates/duplication
+    const currentTextIds = new Set(
+      activePane.elements
+        .filter(el => el.type === 'text')
+        .map(el => el.id)
+    );
+    
+    // Remove refs for elements not in current pane
+    Object.keys(textRefsRef.current).forEach(id => {
+      if (!currentTextIds.has(id)) {
+        delete textRefsRef.current[id];
+      }
+    });
+  }, [activePane?.id]); // Only depend on pane ID, not elements
+
   // Single double-click handler for all text elements (Rules of Hooks compliant)
   const handleTextClick = useKonvaDoubleClick({
     onDouble: (e) => {
@@ -120,7 +140,8 @@ export default function StageCanvas() {
       const textNode = textRefsRef.current[elementId]?.current;
       const element = activePane?.elements.find(el => el.id === elementId);
       
-      if (stage && textNode && element) {
+      // Type guard: ensure element is a text element
+      if (stage && textNode && element && element.type === 'text') {
         startInlineEdit({
           stage,
           textNode,
@@ -360,7 +381,7 @@ export default function StageCanvas() {
       if (target.findAncestor('Transformer', true)) return;
 
       // Look for nearest selectable ancestor first, then fall back to ID
-      const selectable = target.findAncestor((node) => 
+      const selectable = target.findAncestor((node: Konva.Node) => 
         node.name()?.includes('selectable'), true
       ) || target;
 
