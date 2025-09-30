@@ -193,11 +193,16 @@ export const useProject = create<ProjectState>()(
       },
 
       addPane: () => {
+        const state = get();
+        const panes = state.project?.panes || [];
+        const previousPane = panes[panes.length - 1];
+        
+        // Inherit settings from the previous scene, or use defaults if it's the first scene
         const newPane: Pane = {
           id: nanoid(),
-          name: `Scene ${(get().project?.panes.length || 0) + 1}`,
-          durationSec: 3,
-          bgColor: '#3b82f6',
+          name: `Scene ${panes.length + 1}`,
+          durationSec: previousPane?.durationSec ?? 3,
+          bgColor: previousPane?.bgColor ?? '#3b82f6',
           elements: [],
         };
         
