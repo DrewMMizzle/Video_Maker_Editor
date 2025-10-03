@@ -35,6 +35,7 @@ Preferred communication style: Simple, everyday language.
 - **Transform Controls**: Interactive resize, rotate, and drag handles via Konva Transformer
 - **Export System**: Canvas-to-video using MediaRecorder API and HTMLCanvasElement.captureStream()
 - **Aspect Ratios**: Configurable canvas dimensions with safe area overlay
+- **Animated GIF Support**: Hybrid rendering approach with HTML overlays for preview and frame compositing for export
 
 ### Pane Management
 - **Scene System**: Multiple panes (scenes) with individual durations and background colors
@@ -120,3 +121,18 @@ Preferred communication style: Simple, everyday language.
   7. Create/edit/delete projects - verify all changes are user-scoped
   8. Click logout - should return to landing page
   9. Log in as different user - verify separate workspace with no access to other user's projects
+
+### Animated GIF Testing
+- **Manual Testing Required**: GIF upload and animation cannot be fully automated
+- **Manual Test Steps**:
+  1. Log in to the editor
+  2. Click "Image" button in the toolbar
+  3. Click "Upload New" from the dropdown
+  4. Upload an animated GIF file
+  5. Verify the GIF appears on the canvas with animation playing
+  6. Drag, resize, and rotate the GIF - verify the animation follows the element
+  7. Adjust opacity - verify transparency applies correctly
+  8. Create multiple scenes with GIFs - verify each scene maintains its GIF state
+  9. Export to PNG - verify static frame is captured
+  10. Export to video - verify GIF animation is included in the final video
+  11. Test with multiple GIFs in one scene - verify all animations work correctly
