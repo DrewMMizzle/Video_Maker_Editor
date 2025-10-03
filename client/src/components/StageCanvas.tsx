@@ -436,6 +436,8 @@ export default function StageCanvas() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const isGif = file.type === 'image/gif';
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
@@ -452,6 +454,7 @@ export default function StageCanvas() {
           rotation: 0,
           z: 0,
           opacity: 1,
+          isGif,
         };
         addElement(newImage);
       };
@@ -736,6 +739,42 @@ export default function StageCanvas() {
                 </Group>
               </Layer>
             </Stage>
+
+            {/* GIF Overlays - HTML img elements for animated GIFs */}
+            {activePane.elements
+              .filter(el => el.type === 'image' && el.isGif)
+              .map(element => {
+                const groupX = (containerSize.width - project.canvas.width * canvasScale) / 2;
+                const groupY = (containerSize.height - project.canvas.height * canvasScale) / 2;
+                
+                const centerX = element.x * canvasScale;
+                const centerY = element.y * canvasScale;
+                const width = element.width * canvasScale;
+                const height = element.height * canvasScale;
+                
+                const left = groupX + centerX - width / 2;
+                const top = groupY + centerY - height / 2;
+                
+                return (
+                  <img
+                    key={`gif-${element.id}`}
+                    src={element.src}
+                    alt=""
+                    style={{
+                      position: 'absolute',
+                      left: `${left}px`,
+                      top: `${top}px`,
+                      width: `${width}px`,
+                      height: `${height}px`,
+                      transform: `rotate(${element.rotation}deg)`,
+                      transformOrigin: 'center center',
+                      opacity: element.opacity,
+                      pointerEvents: 'none',
+                      imageRendering: 'auto'
+                    }}
+                  />
+                );
+              })}
 
             {/* Canvas info */}
             <div className="absolute -bottom-8 left-0 text-xs text-muted-foreground">

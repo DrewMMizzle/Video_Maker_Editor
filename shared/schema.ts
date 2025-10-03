@@ -43,6 +43,7 @@ export const imageElementSchema = elementBaseSchema.extend({
   width: z.number(),
   height: z.number(),
   cornerRadius: z.number().optional(),
+  isGif: z.boolean().optional(),
 });
 
 export const iconElementSchema = elementBaseSchema.extend({
