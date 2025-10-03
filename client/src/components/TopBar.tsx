@@ -562,16 +562,24 @@ export default function TopBar() {
               <Button variant="ghost" size="sm" className="gap-2" data-testid="button-user-menu">
                 <Avatar className="h-6 w-6">
                   <AvatarFallback className="text-xs">
-                    {user?.name?.charAt(0).toUpperCase() || 'U'}
+                    {user?.firstName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
-                <span className="text-sm">{user?.name || 'User'}</span>
+                <span className="text-sm">
+                  {user?.firstName && user?.lastName 
+                    ? `${user.firstName} ${user.lastName}`
+                    : user?.firstName || user?.email || 'User'}
+                </span>
                 <ChevronDown className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem disabled className="flex flex-col items-start">
-                <div className="text-sm font-medium">{user?.name}</div>
+                <div className="text-sm font-medium">
+                  {user?.firstName && user?.lastName 
+                    ? `${user.firstName} ${user.lastName}`
+                    : user?.firstName || user?.email || 'User'}
+                </div>
                 <div className="text-xs text-muted-foreground">{user?.email}</div>
               </DropdownMenuItem>
               <DropdownMenuSeparator />

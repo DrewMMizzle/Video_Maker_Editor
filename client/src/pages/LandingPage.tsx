@@ -3,7 +3,7 @@ import { Video, Sparkles, Zap, Layers } from "lucide-react";
 
 export default function LandingPage() {
   const handleLogin = () => {
-    window.location.href = "/login";
+    window.location.href = "/api/login";
   };
 
   return (
