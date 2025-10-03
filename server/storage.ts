@@ -2,37 +2,65 @@ import {
   type Project, 
   type Asset, 
   type InsertAsset,
+  type User,
+  type UpsertUser,
   projects,
-  assets
+  assets,
+  users
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export interface IStorage {
+  // User management (required for Replit Auth)
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  
   // Project management
-  getProject(id: string): Promise<Project | undefined>;
-  createProject(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project>;
-  updateProject(id: string, project: Partial<Project>): Promise<Project | undefined>;
-  deleteProject(id: string): Promise<boolean>;
-  listProjects(): Promise<Project[]>;
+  getProject(id: string, userId: string): Promise<Project | undefined>;
+  createProject(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>, userId: string): Promise<Project>;
+  updateProject(id: string, userId: string, project: Partial<Project>): Promise<Project | undefined>;
+  deleteProject(id: string, userId: string): Promise<boolean>;
+  listProjects(userId: string): Promise<Project[]>;
   
   // Asset management
-  getAsset(id: string): Promise<Asset | undefined>;
-  createAsset(asset: InsertAsset): Promise<Asset>;
-  updateAsset(id: string, asset: Partial<Asset>): Promise<Asset | undefined>;
-  deleteAsset(id: string): Promise<boolean>;
-  listAssets(): Promise<Asset[]>;
+  getAsset(id: string, userId: string): Promise<Asset | undefined>;
+  createAsset(asset: InsertAsset, userId: string): Promise<Asset>;
+  updateAsset(id: string, userId: string, asset: Partial<Asset>): Promise<Asset | undefined>;
+  deleteAsset(id: string, userId: string): Promise<boolean>;
+  listAssets(userId: string): Promise<Asset[]>;
 }
 
 export class DatabaseStorage implements IStorage {
+  // User management
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
   // Project management
-  async getProject(id: string): Promise<Project | undefined> {
+  async getProject(id: string, userId: string): Promise<Project | undefined> {
     try {
       const [project] = await db
         .select()
         .from(projects)
-        .where(eq(projects.id, id));
+        .where(and(eq(projects.id, id), eq(projects.userId, userId)));
       
       if (!project) return undefined;
 
@@ -63,7 +91,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async createProject(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project> {
+  async createProject(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>, userId: string): Promise<Project> {
     const id = randomUUID();
     const now = new Date();
     
@@ -71,6 +99,7 @@ export class DatabaseStorage implements IStorage {
       .insert(projects)
       .values({
         id,
+        userId,
         version: project.version,
         title: project.title,
         canvas: project.canvas,
@@ -99,7 +128,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async updateProject(id: string, updates: Partial<Project>): Promise<Project | undefined> {
+  async updateProject(id: string, userId: string, updates: Partial<Project>): Promise<Project | undefined> {
     try {
       const now = new Date();
       // Convert string dates back to Date objects for database
@@ -118,7 +147,7 @@ export class DatabaseStorage implements IStorage {
           ...dbUpdates,
           updatedAt: now,
         })
-        .where(eq(projects.id, id))
+        .where(and(eq(projects.id, id), eq(projects.userId, userId)))
         .returning();
 
       if (!updated) return undefined;
@@ -142,11 +171,11 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async deleteProject(id: string): Promise<boolean> {
+  async deleteProject(id: string, userId: string): Promise<boolean> {
     try {
       const result = await db
         .delete(projects)
-        .where(eq(projects.id, id));
+        .where(and(eq(projects.id, id), eq(projects.userId, userId)));
       return (result.rowCount || 0) > 0;
     } catch (error) {
       console.error('Error deleting project:', error);
@@ -154,11 +183,12 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async listProjects(): Promise<Project[]> {
+  async listProjects(userId: string): Promise<Project[]> {
     try {
       const projectList = await db
         .select()
         .from(projects)
+        .where(eq(projects.userId, userId))
         .orderBy(desc(projects.updatedAt));
 
       return projectList.map(project => ({
@@ -181,12 +211,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Asset management methods
-  async getAsset(id: string): Promise<Asset | undefined> {
+  async getAsset(id: string, userId: string): Promise<Asset | undefined> {
     try {
       const [asset] = await db
         .select()
         .from(assets)
-        .where(eq(assets.id, id));
+        .where(and(eq(assets.id, id), eq(assets.userId, userId)));
       
       if (!asset) return undefined;
 
@@ -207,7 +237,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async createAsset(asset: InsertAsset): Promise<Asset> {
+  async createAsset(asset: InsertAsset, userId: string): Promise<Asset> {
     const id = randomUUID();
     const now = new Date();
     
@@ -215,6 +245,7 @@ export class DatabaseStorage implements IStorage {
       .insert(assets)
       .values({
         id,
+        userId,
         filename: asset.filename,
         fileType: asset.fileType,
         fileSize: asset.fileSize,
@@ -239,7 +270,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async updateAsset(id: string, updates: Partial<Asset>): Promise<Asset | undefined> {
+  async updateAsset(id: string, userId: string, updates: Partial<Asset>): Promise<Asset | undefined> {
     try {
       // Convert string dates back to Date objects for database
       const dbUpdates: any = { ...updates };
@@ -250,7 +281,7 @@ export class DatabaseStorage implements IStorage {
       const [updated] = await db
         .update(assets)
         .set(dbUpdates)
-        .where(eq(assets.id, id))
+        .where(and(eq(assets.id, id), eq(assets.userId, userId)))
         .returning();
 
       if (!updated) return undefined;
@@ -272,11 +303,11 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async deleteAsset(id: string): Promise<boolean> {
+  async deleteAsset(id: string, userId: string): Promise<boolean> {
     try {
       const result = await db
         .delete(assets)
-        .where(eq(assets.id, id));
+        .where(and(eq(assets.id, id), eq(assets.userId, userId)));
       return (result.rowCount || 0) > 0;
     } catch (error) {
       console.error('Error deleting asset:', error);
@@ -284,11 +315,12 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async listAssets(): Promise<Asset[]> {
+  async listAssets(userId: string): Promise<Asset[]> {
     try {
       const assetList = await db
         .select()
         .from(assets)
+        .where(eq(assets.userId, userId))
         .orderBy(desc(assets.uploadedAt));
 
       return assetList.map(asset => ({

@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { projectSchema, brandImportResultSchema, assetSchema, insertAssetSchema } from "@shared/schema";
 import { scrapeBrand } from "./services/brand-scraper";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 import { z } from "zod";
 
 // Helper function to normalize and validate URLs
@@ -29,8 +30,23 @@ function normalizeUrl(input: string): string {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Brand scraping endpoint
-  app.get('/api/brand/scrape', async (req, res) => {
+  // Setup authentication middleware
+  await setupAuth(app);
+
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Brand scraping endpoint (protected)
+  app.get('/api/brand/scrape', isAuthenticated, async (req, res) => {
     try {
       const rawUrl = req.query.url;
       const url = normalizeUrl(rawUrl as string);
@@ -55,18 +71,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Project CRUD endpoints
-  app.get('/api/projects', async (req, res) => {
+  app.get('/api/projects', isAuthenticated, async (req: any, res) => {
     try {
-      const projects = await storage.listProjects();
+      const userId = req.user.claims.sub;
+      const projects = await storage.listProjects(userId);
       res.json(projects);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get('/api/projects/:id', async (req, res) => {
+  app.get('/api/projects/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const project = await storage.getProject(req.params.id);
+      const userId = req.user.claims.sub;
+      const project = await storage.getProject(req.params.id, userId);
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
       }
@@ -76,20 +94,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/projects', async (req, res) => {
+  app.post('/api/projects', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const projectData = projectSchema.omit({ id: true, createdAt: true, updatedAt: true }).parse(req.body);
-      const project = await storage.createProject(projectData);
+      const project = await storage.createProject(projectData, userId);
       res.status(201).json(project);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  app.put('/api/projects/:id', async (req, res) => {
+  app.put('/api/projects/:id', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const updates = projectSchema.partial().parse(req.body);
-      const project = await storage.updateProject(req.params.id, updates);
+      const project = await storage.updateProject(req.params.id, userId, updates);
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
       }
@@ -99,9 +119,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/projects/:id', async (req, res) => {
+  app.delete('/api/projects/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const deleted = await storage.deleteProject(req.params.id);
+      const userId = req.user.claims.sub;
+      const deleted = await storage.deleteProject(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ error: 'Project not found' });
       }
@@ -114,7 +135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Asset management endpoints
   
   // Get presigned upload URL for asset upload
-  app.post('/api/assets/upload', async (req, res) => {
+  app.post('/api/assets/upload', isAuthenticated, async (req, res) => {
     try {
       const objectStorageService = new ObjectStorageService();
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
@@ -126,18 +147,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Save asset metadata after successful upload
-  app.post('/api/assets', async (req, res) => {
+  app.post('/api/assets', isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const assetData = insertAssetSchema.parse(req.body);
       
-      // For public file uploading (no auth required), set basic ACL policy
       const objectStorageService = new ObjectStorageService();
       const normalizedPath = objectStorageService.normalizeObjectEntityPath(assetData.objectPath);
       
       // Set public ACL policy for the uploaded asset
       try {
         await objectStorageService.trySetObjectEntityAclPolicy(assetData.objectPath, {
-          owner: 'system', // For now, using 'system' as owner since no auth
+          owner: userId,
           visibility: 'public',
         });
       } catch (error) {
@@ -148,7 +169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const asset = await storage.createAsset({
         ...assetData,
         objectPath: normalizedPath
-      });
+      }, userId);
       
       res.status(201).json(asset);
     } catch (error: any) {
@@ -158,9 +179,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // List all assets
-  app.get('/api/assets', async (req, res) => {
+  app.get('/api/assets', isAuthenticated, async (req: any, res) => {
     try {
-      const assets = await storage.listAssets();
+      const userId = req.user.claims.sub;
+      const assets = await storage.listAssets(userId);
       res.json(assets);
     } catch (error: any) {
       console.error('Error listing assets:', error);
@@ -169,9 +191,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete asset and its storage object
-  app.delete('/api/assets/:id', async (req, res) => {
+  app.delete('/api/assets/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const asset = await storage.getAsset(req.params.id);
+      const userId = req.user.claims.sub;
+      const asset = await storage.getAsset(req.params.id, userId);
       if (!asset) {
         return res.status(404).json({ error: 'Asset not found' });
       }
@@ -186,7 +209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Delete from local storage
-      const deleted = await storage.deleteAsset(req.params.id);
+      const deleted = await storage.deleteAsset(req.params.id, userId);
       if (!deleted) {
         return res.status(404).json({ error: 'Asset not found' });
       }
