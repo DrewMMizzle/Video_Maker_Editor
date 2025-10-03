@@ -189,6 +189,7 @@ export default function LibraryPanel() {
     }
 
     // Create image element from asset
+    const isGif = asset.fileType === 'image/gif';
     const newImage = {
       id: nanoid(),
       type: 'image' as const,
@@ -200,6 +201,7 @@ export default function LibraryPanel() {
       rotation: 0,
       z: 0,
       opacity: 1,
+      isGif,
     };
 
     addElement(newImage);
