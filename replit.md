@@ -23,7 +23,9 @@ Preferred communication style: Simple, everyday language.
 ### Backend Architecture
 - **Server**: Express.js with TypeScript
 - **Development Setup**: Vite middleware integration for hot module replacement
-- **Storage**: In-memory storage with interface for future database integration
+- **Storage**: PostgreSQL database with Drizzle ORM for user-scoped data persistence
+- **Authentication**: Replit Auth with support for Google, GitHub, and email login
+- **Session Management**: PostgreSQL session store with connect-pg-simple
 - **Brand Scraping**: Playwright with Chromium for extracting brand colors and fonts from URLs
 - **API Structure**: RESTful endpoints for project CRUD and brand import functionality
 
@@ -52,10 +54,24 @@ Preferred communication style: Simple, everyday language.
 - **Font Detection**: Google Fonts and system font identification
 - **Fallback Strategy**: HTML fetch with limited parsing when Playwright is unavailable
 
+### Authentication System
+- **Auth Provider**: Replit Auth with OAuth support (Google, GitHub) and email authentication
+- **Middleware**: `server/replitAuth.ts` handles authentication setup and session management
+- **Route Protection**: `isAuthenticated` middleware on all `/api/*` endpoints
+- **User Model**: PostgreSQL `users` table stores id, email, firstName, lastName, profileImageUrl
+- **Session Storage**: PostgreSQL-backed sessions using `connect-pg-simple`
+- **Data Isolation**: All projects and assets filtered by `userId` at the storage layer
+- **Frontend Auth**: 
+  - Landing page for logged-out users at `/` with login button
+  - `useAuth` hook provides user state and authentication status
+  - TopBar displays user info with dropdown menu and logout button
+  - Automatic redirect to landing page when unauthenticated
+
 ## External Dependencies
 
-- **Database**: Drizzle ORM configured for PostgreSQL (currently using in-memory storage)
+- **Database**: Drizzle ORM configured for PostgreSQL with user-scoped data model
 - **Cloud Database**: Neon Database integration for production persistence
+- **Authentication**: Replit Auth for secure multi-user login
 - **Web Scraping**: Playwright with Chromium for brand import functionality
 - **Font Services**: Google Fonts API for dynamic font loading
 - **Build Tools**: Vite for frontend bundling and development server
@@ -90,3 +106,17 @@ Preferred communication style: Simple, everyday language.
 - ✅ **Faster Tests**: No database roundtrips, all operations are in-memory
 - ✅ **Reliable Tests**: Same mock data every run, no flaky tests from external dependencies
 - ✅ **Safe Testing**: Can't accidentally corrupt production data or user projects
+
+### Authentication Testing
+- **Automated Tests**: `tests/auth.spec.ts` verifies landing page display and login button presence
+- **Manual Testing Required**: Replit Auth requires real OAuth flows that cannot be fully automated
+- **Manual Test Steps**:
+  1. Navigate to app while logged out - should see landing page
+  2. Click "Sign In to Get Started" button
+  3. Complete Replit Auth flow (Google/GitHub/Email)
+  4. Should redirect to editor with full functionality
+  5. Verify TopBar shows user name/email in dropdown menu
+  6. Verify Library page shows only your projects
+  7. Create/edit/delete projects - verify all changes are user-scoped
+  8. Click logout - should return to landing page
+  9. Log in as different user - verify separate workspace with no access to other user's projects
