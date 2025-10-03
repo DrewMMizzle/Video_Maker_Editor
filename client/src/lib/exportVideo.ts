@@ -21,6 +21,38 @@ function drawStageInto(ctx: CanvasRenderingContext2D, stage: Konva.Stage) {
   });
 }
 
+// Draw GIF overlays onto export canvas
+function drawGifsInto(ctx: CanvasRenderingContext2D, project: Project, paneId: string) {
+  const pane = project.panes.find(p => p.id === paneId);
+  if (!pane) return;
+  
+  const gifElements = pane.elements.filter((el): el is Extract<typeof el, { type: 'image' }> => 
+    el.type === 'image' && !!el.isGif
+  );
+  
+  gifElements.forEach(element => {
+    const gifImg = document.querySelector(`img[src="${element.src}"]`) as HTMLImageElement;
+    if (gifImg && gifImg.complete) {
+      // Draw the GIF at its position (centered)
+      const x = element.x - element.width / 2;
+      const y = element.y - element.height / 2;
+      
+      ctx.save();
+      
+      // Apply transformations
+      ctx.globalAlpha = element.opacity;
+      ctx.translate(element.x, element.y);
+      ctx.rotate((element.rotation * Math.PI) / 180);
+      ctx.translate(-element.x, -element.y);
+      
+      // Draw the image
+      ctx.drawImage(gifImg, x, y, element.width, element.height);
+      
+      ctx.restore();
+    }
+  });
+}
+
 // Wait for all assets and rendering to be ready
 async function waitForPaneReady(promises: Promise<any>[] = []) {
   try {
@@ -203,6 +235,9 @@ async function renderPanesSequentiallyWithStage(
           
           // Direct layer composition - much faster than toDataURL()
           drawStageInto(ctx, stage);
+          
+          // Draw animated GIFs on top
+          drawGifsInto(ctx, project, pane.id);
           
         } catch (error) {
           console.warn(`Failed to capture frame ${frameCount}:`, error);

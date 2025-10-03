@@ -742,7 +742,7 @@ export default function StageCanvas() {
 
             {/* GIF Overlays - HTML img elements for animated GIFs */}
             {activePane.elements
-              .filter(el => el.type === 'image' && el.isGif)
+              .filter((el): el is Extract<typeof el, { type: 'image' }> => el.type === 'image' && !!el.isGif)
               .map(element => {
                 const groupX = (containerSize.width - project.canvas.width * canvasScale) / 2;
                 const groupY = (containerSize.height - project.canvas.height * canvasScale) / 2;
