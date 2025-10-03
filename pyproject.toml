@@ -4,5 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
-    "moviepy>=2.2.1",
+    "imageio>=2.34.0",
+    "imageio-ffmpeg>=0.5.1",
+    "pillow>=10.2.0",
 ]

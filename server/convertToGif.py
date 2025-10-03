@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-MP4 to GIF converter using moviepy
+MP4 to GIF converter using imageio and Pillow
 Optimizes for reasonable file sizes while maintaining quality
 """
 
 import sys
 import os
-from moviepy.editor import VideoFileClip
+import imageio.v3 as iio
+from PIL import Image
 
-def convert_mp4_to_gif(input_path, output_path, max_duration=10, fps=10, width=500):
+def convert_mp4_to_gif(input_path, output_path, max_duration=10, target_fps=10, max_width=500):
     """
     Convert MP4 video to optimized GIF
     
@@ -16,38 +17,55 @@ def convert_mp4_to_gif(input_path, output_path, max_duration=10, fps=10, width=5
         input_path: Path to input MP4 file
         output_path: Path to output GIF file
         max_duration: Maximum duration in seconds (default: 10)
-        fps: Frames per second for GIF (default: 10)
-        width: Maximum width in pixels (default: 500)
+        target_fps: Target frames per second for GIF (default: 10)
+        max_width: Maximum width in pixels (default: 500)
     """
     try:
-        # Load the video
-        clip = VideoFileClip(input_path)
+        # Read video metadata (using default ffmpeg backend)
+        video_metadata = iio.immeta(input_path)
+        source_fps = video_metadata.get('fps', 30)
         
-        # Limit duration
-        if clip.duration > max_duration:
-            clip = clip.subclip(0, max_duration)
+        # Calculate frame skip to achieve target fps
+        frame_skip = max(1, int(source_fps / target_fps))
         
-        # Calculate height maintaining aspect ratio
-        aspect_ratio = clip.h / clip.w
-        height = int(width * aspect_ratio)
+        # Read frames from video (using default ffmpeg backend)
+        frames = []
+        frame_count = 0
+        max_frames = int(max_duration * target_fps)
         
-        # Resize if needed
-        if clip.w > width:
-            clip = clip.resize(width=width)
+        for frame in iio.imiter(input_path):
+            if frame_count % frame_skip == 0:
+                # Convert numpy array to PIL Image
+                pil_frame = Image.fromarray(frame)
+                
+                # Resize if width exceeds maximum
+                if pil_frame.width > max_width:
+                    aspect_ratio = pil_frame.height / pil_frame.width
+                    new_height = int(max_width * aspect_ratio)
+                    pil_frame = pil_frame.resize((max_width, new_height), Image.Resampling.LANCZOS)
+                
+                frames.append(pil_frame)
+                
+                # Stop if we've reached max duration
+                if len(frames) >= max_frames:
+                    break
+            
+            frame_count += 1
         
-        # Write GIF with optimized settings
-        clip.write_gif(
+        if not frames:
+            raise ValueError("No frames extracted from video")
+        
+        # Save as GIF
+        frames[0].save(
             output_path,
-            fps=fps,
-            program='ffmpeg',
-            opt='nq',  # No optimization (faster, slightly larger files)
-            logger=None  # Suppress progress bars
+            save_all=True,
+            append_images=frames[1:],
+            duration=int(1000 / target_fps),  # Duration in milliseconds per frame
+            loop=0,  # Loop forever
+            optimize=False  # Skip optimization for faster processing
         )
         
-        # Clean up
-        clip.close()
-        
-        print(f"SUCCESS: Converted {input_path} to {output_path}")
+        print(f"SUCCESS: Converted {input_path} to {output_path} ({len(frames)} frames)")
         return True
         
     except Exception as e:
