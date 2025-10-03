@@ -48,7 +48,7 @@ export default function LibraryPanel() {
         throw new Error('Failed to upload file');
       }
 
-      // Get image dimensions if it's an image
+      // Get dimensions if it's an image or video
       let width: number | undefined;
       let height: number | undefined;
       
@@ -64,6 +64,19 @@ export default function LibraryPanel() {
           };
           img.onerror = reject;
           img.src = imageUrl;
+        });
+      } else if (file.type.startsWith('video/')) {
+        const video = document.createElement('video');
+        const videoUrl = URL.createObjectURL(file);
+        await new Promise((resolve, reject) => {
+          video.onloadedmetadata = () => {
+            width = video.videoWidth;
+            height = video.videoHeight;
+            URL.revokeObjectURL(videoUrl);
+            resolve(void 0);
+          };
+          video.onerror = reject;
+          video.src = videoUrl;
         });
       }
 
@@ -182,8 +195,8 @@ export default function LibraryPanel() {
           <h3 className="text-sm font-medium">Asset Library</h3>
           <ObjectUploader
             maxNumberOfFiles={1}
-            maxFileSize={10485760} // 10MB
-            allowedFileTypes={['image/*']}
+            maxFileSize={52428800} // 50MB for videos
+            allowedFileTypes={['image/*', 'video/mp4']}
             onGetUploadParameters={handleGetUploadParameters}
             onComplete={handleUploadComplete}
             buttonVariant="outline"
