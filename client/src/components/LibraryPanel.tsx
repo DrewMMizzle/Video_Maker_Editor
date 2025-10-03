@@ -218,7 +218,7 @@ export default function LibraryPanel() {
           <h3 className="text-sm font-medium">Asset Library</h3>
           <ObjectUploader
             maxNumberOfFiles={1}
-            maxFileSize={52428800} // 50MB for videos
+            maxFileSize={104857600} // 100MB for videos
             allowedFileTypes={['image/*', 'video/mp4']}
             onGetUploadParameters={handleGetUploadParameters}
             onComplete={handleUploadComplete}
