@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, Search, Trash2, ImageIcon, Plus } from 'lucide-react';
+import { Upload, Search, Trash2, ImageIcon, Plus, Video, RefreshCw } from 'lucide-react';
 import { ObjectUploader } from './ObjectUploader';
 import type { Asset } from '@shared/schema';
 import { useProject } from '@/store/useProject';
@@ -133,6 +133,29 @@ export default function LibraryPanel() {
     },
   });
 
+  // Convert to GIF mutation
+  const convertMutation = useMutation({
+    mutationFn: async (assetId: string) => {
+      const response = await apiRequest('POST', `/api/assets/${assetId}/convert-to-gif`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
+      toast({
+        title: 'Conversion successful',
+        description: 'MP4 has been converted to GIF and added to your library',
+      });
+    },
+    onError: (error: any) => {
+      console.error('Conversion error:', error);
+      toast({
+        title: 'Conversion failed',
+        description: error.message || 'Failed to convert video to GIF',
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Handle getting upload parameters
   const handleGetUploadParameters = async () => {
     const response = await apiRequest('POST', '/api/assets/upload');
@@ -252,84 +275,156 @@ export default function LibraryPanel() {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {filteredAssets.map((asset) => (
-              <Card 
-                key={asset.id} 
-                className="aspect-square group cursor-pointer transition-all hover:shadow-md"
-                onClick={() => handleAddToCanvas(asset)}
-                data-testid={`asset-${asset.id}`}
-              >
-                <CardContent className="p-2 h-full flex flex-col">
-                  {/* Image Preview */}
-                  <div className="flex-1 rounded-md bg-muted flex items-center justify-center overflow-hidden">
-                    {asset.fileType.startsWith('image/') ? (
-                      <img 
-                        src={`${window.location.origin}${asset.objectPath}`}
-                        alt={asset.filename}
-                        className="w-full h-full object-cover rounded-md"
-                        onError={(e) => {
-                          // Fallback if image fails to load
-                          const img = e.target as HTMLImageElement;
-                          img.style.display = 'none';
-                          const parent = img.parentElement;
-                          if (parent) {
-                            parent.innerHTML = '<div class="w-8 h-8 text-muted-foreground"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div>';
-                          }
-                        }}
-                      />
-                    ) : (
-                      <ImageIcon className="w-8 h-8 text-muted-foreground" />
-                    )}
-                  </div>
+            {filteredAssets.map((asset) => {
+              const isVideo = asset.fileType.startsWith('video/');
+              
+              return (
+                <Card 
+                  key={asset.id} 
+                  className={`aspect-square group transition-all ${!isVideo ? 'cursor-pointer hover:shadow-md' : ''}`}
+                  onClick={() => !isVideo && handleAddToCanvas(asset)}
+                  data-testid={`asset-${asset.id}`}
+                >
+                  <CardContent className="p-2 h-full flex flex-col">
+                    {/* Image/Video Preview */}
+                    <div className="flex-1 rounded-md bg-muted flex items-center justify-center overflow-hidden relative">
+                      {asset.fileType.startsWith('image/') ? (
+                        <img 
+                          src={`${window.location.origin}${asset.objectPath}`}
+                          alt={asset.filename}
+                          className="w-full h-full object-cover rounded-md"
+                          onError={(e) => {
+                            // Fallback if image fails to load
+                            const img = e.target as HTMLImageElement;
+                            img.style.display = 'none';
+                            const parent = img.parentElement;
+                            if (parent) {
+                              parent.innerHTML = '<div class="w-8 h-8 text-muted-foreground"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div>';
+                            }
+                          }}
+                        />
+                      ) : isVideo ? (
+                        <>
+                          <Video className="w-12 h-12 text-muted-foreground" />
+                          <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-md font-medium">
+                            MP4
+                          </div>
+                        </>
+                      ) : (
+                        <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                      )}
+                    </div>
                   
                   {/* Asset Info */}
                   <div className="mt-2 space-y-1">
                     <p className="text-xs font-medium truncate" title={asset.filename}>
                       {asset.filename}
                     </p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">
-                        {asset.width && asset.height ? `${asset.width}×${asset.height}` : 'Unknown size'}
-                      </span>
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                              }}
-                              data-testid={`button-delete-asset-${asset.id}`}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Asset</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete "{asset.filename}"? This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => deleteMutation.mutate(asset.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    
+                    {isVideo ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          Convert to GIF to use in scenes
+                        </p>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="flex-1 h-7 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              convertMutation.mutate(asset.id);
+                            }}
+                            disabled={convertMutation.isPending}
+                            data-testid={`button-convert-${asset.id}`}
+                          >
+                            {convertMutation.isPending ? (
+                              <>
+                                <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                                Converting...
+                              </>
+                            ) : (
+                              'Convert to GIF'
+                            )}
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={(e) => e.stopPropagation()}
+                                data-testid={`button-delete-asset-${asset.id}`}
                               >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Asset</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{asset.filename}"? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteMutation.mutate(asset.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          {asset.width && asset.height ? `${asset.width}×${asset.height}` : 'Unknown size'}
+                        </span>
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                }}
+                                data-testid={`button-delete-asset-${asset.id}`}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Asset</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{asset.filename}"? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteMutation.mutate(asset.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              )
+            })}
           </div>
         )}
       </ScrollArea>
