@@ -6,6 +6,13 @@ import { scrapeBrand } from "./services/brand-scraper";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { z } from "zod";
+import { exec } from "child_process";
+import { promisify } from "util";
+import * as fs from "fs/promises";
+import * as path from "path";
+import { randomUUID } from "crypto";
+
+const execAsync = promisify(exec);
 
 // Helper function to normalize and validate URLs
 function normalizeUrl(input: string): string {
@@ -218,6 +225,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('Error deleting asset:', error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Convert MP4 asset to GIF
+  app.post('/api/assets/:id/convert-to-gif', isAuthenticated, async (req: any, res) => {
+    const tempDir = '/tmp';
+    let inputPath = '';
+    let outputPath = '';
+    
+    try {
+      const userId = req.user.claims.sub;
+      const asset = await storage.getAsset(req.params.id, userId);
+      
+      if (!asset) {
+        return res.status(404).json({ error: 'Asset not found' });
+      }
+      
+      if (!asset.fileType.startsWith('video/')) {
+        return res.status(400).json({ error: 'Asset is not a video file' });
+      }
+      
+      const objectStorageService = new ObjectStorageService();
+      
+      // Download MP4 from object storage to temp file
+      const objectFile = await objectStorageService.getObjectEntityFile(asset.objectPath);
+      const mp4Buffer = await objectFile.download();
+      
+      inputPath = path.join(tempDir, `${randomUUID()}.mp4`);
+      outputPath = path.join(tempDir, `${randomUUID()}.gif`);
+      
+      await fs.writeFile(inputPath, mp4Buffer[0]);
+      
+      // Run Python conversion script
+      const scriptPath = path.join(process.cwd(), 'server', 'convertToGif.py');
+      const { stdout, stderr } = await execAsync(
+        `python3 "${scriptPath}" "${inputPath}" "${outputPath}" 10 10 500`
+      );
+      
+      if (stderr && !stderr.includes('SUCCESS')) {
+        throw new Error(`Conversion failed: ${stderr}`);
+      }
+      
+      // Upload GIF to object storage
+      const gifBuffer = await fs.readFile(outputPath);
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      
+      await fetch(uploadURL, {
+        method: 'PUT',
+        body: gifBuffer,
+        headers: {
+          'Content-Type': 'image/gif',
+        },
+      });
+      
+      const normalizedPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+      
+      // Calculate GIF dimensions (max 500px width, preserving aspect ratio)
+      const maxWidth = 500;
+      let width = asset.width || maxWidth;
+      let height = asset.height || maxWidth;
+      
+      if (width > maxWidth) {
+        const aspectRatio = height / width;
+        width = maxWidth;
+        height = Math.floor(maxWidth * aspectRatio);
+      }
+      
+      // Set public ACL policy for the uploaded GIF
+      try {
+        await objectStorageService.trySetObjectEntityAclPolicy(uploadURL, {
+          owner: userId,
+          visibility: 'public',
+        });
+      } catch (error) {
+        console.error('Error setting ACL policy:', error);
+      }
+      
+      // Create new asset record for GIF
+      const gifAsset = await storage.createAsset({
+        filename: asset.filename.replace(/\.[^/.]+$/, '.gif'),
+        fileType: 'image/gif',
+        fileSize: gifBuffer.length,
+        objectPath: normalizedPath,
+        width,
+        height,
+      }, userId);
+      
+      res.status(201).json(gifAsset);
+      
+    } catch (error: any) {
+      console.error('Error converting to GIF:', error);
+      res.status(500).json({ error: error.message || 'Conversion failed' });
+    } finally {
+      // Clean up temp files
+      try {
+        if (inputPath) await fs.unlink(inputPath).catch(() => {});
+        if (outputPath) await fs.unlink(outputPath).catch(() => {});
+      } catch (e) {
+        console.error('Error cleaning up temp files:', e);
+      }
     }
   });
 
