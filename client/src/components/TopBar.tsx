@@ -1,12 +1,14 @@
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { FilePlus, FolderOpen, Save, SaveAll, Video, Image as ImageIcon, Library, Trash2, ChevronDown } from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { FilePlus, FolderOpen, Save, SaveAll, Video, Image as ImageIcon, Library, Trash2, ChevronDown, User, LogOut } from 'lucide-react';
 import { useProject } from '@/store/useProject';
+import { useAuth } from '@/hooks/useAuth';
 import { ASPECT_RATIOS } from '@/types';
 import { loadProjectFromFile } from '@/lib/persist';
 import { exportVideo } from '@/lib/exportVideo';
@@ -29,6 +31,7 @@ export default function TopBar() {
     setExporting,
     exportVideoWithStage
   } = useProject();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -550,6 +553,37 @@ export default function TopBar() {
             <ImageIcon className="w-4 h-4 mr-2" />
             Export PNG
           </Button>
+
+          <Separator orientation="vertical" className="h-6" />
+
+          {/* User Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-2" data-testid="button-user-menu">
+                <Avatar className="h-6 w-6">
+                  <AvatarFallback className="text-xs">
+                    {user?.name?.charAt(0).toUpperCase() || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm">{user?.name || 'User'}</span>
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem disabled className="flex flex-col items-start">
+                <div className="text-sm font-medium">{user?.name}</div>
+                <div className="text-xs text-muted-foreground">{user?.email}</div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => window.location.href = '/logout'}
+                data-testid="button-logout"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
