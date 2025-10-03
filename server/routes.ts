@@ -257,10 +257,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       await fs.writeFile(inputPath, mp4Buffer[0]);
       
-      // Run Python conversion script
+      // Run Python conversion script with virtual environment Python
       const scriptPath = path.join(process.cwd(), 'server', 'convertToGif.py');
+      const pythonPath = path.join(process.cwd(), '.pythonlibs', 'bin', 'python3');
       const { stdout, stderr } = await execAsync(
-        `python3 "${scriptPath}" "${inputPath}" "${outputPath}" 10 10 500`
+        `"${pythonPath}" "${scriptPath}" "${inputPath}" "${outputPath}" 10 10 500`
       );
       
       if (stderr && !stderr.includes('SUCCESS')) {
