@@ -8,14 +8,20 @@ interface ImageState {
 
 // Cache for loaded images to prevent reloading
 const imageCache = new Map<string, HTMLCanvasElement>();
+const rawImageCache = new Map<string, HTMLImageElement>();
 
 // Enhanced image loader with color space normalization and high-quality rendering
-export async function loadImage(url: string): Promise<HTMLImageElement | HTMLCanvasElement> {
+export async function loadImage(url: string, skipCanvasConversion = false): Promise<HTMLImageElement | HTMLCanvasElement> {
   const img = new Image();
   img.crossOrigin = 'anonymous';
   img.decoding = 'async';
   img.src = url;
   await img.decode();
+
+  // For GIFs and other cases where we need the raw image, return it directly
+  if (skipCanvasConversion) {
+    return img;
+  }
 
   // Optional: normalize to sRGB canvas to avoid wide-gamut mismatch
   const canvas = document.createElement('canvas');
@@ -31,7 +37,7 @@ export async function loadImage(url: string): Promise<HTMLImageElement | HTMLCan
   return canvas; // return canvas as the image source for Konva
 }
 
-export function useImageLoader(src: string): ImageState {
+export function useImageLoader(src: string, skipCanvasConversion = false): ImageState {
   const [state, setState] = useState<ImageState>({
     element: null,
     loading: true,
@@ -43,8 +49,16 @@ export function useImageLoader(src: string): ImageState {
   useEffect(() => {
     currentSrcRef.current = src;
     
-    // Check cache first
-    if (imageCache.has(src)) {
+    // Check appropriate cache first
+    if (skipCanvasConversion && rawImageCache.has(src)) {
+      const cachedImage = rawImageCache.get(src)!;
+      setState({
+        element: cachedImage,
+        loading: false,
+        error: false
+      });
+      return;
+    } else if (!skipCanvasConversion && imageCache.has(src)) {
       const cachedImage = imageCache.get(src)!;
       setState({
         element: cachedImage,
@@ -57,13 +71,17 @@ export function useImageLoader(src: string): ImageState {
     setState(prev => ({ ...prev, loading: true, error: false }));
 
     // Use enhanced loader for better quality
-    loadImage(src)
-      .then((canvas) => {
+    loadImage(src, skipCanvasConversion)
+      .then((element) => {
         // Only update state if this is still the current src
         if (currentSrcRef.current === src) {
-          imageCache.set(src, canvas as HTMLCanvasElement);
+          if (skipCanvasConversion) {
+            rawImageCache.set(src, element as HTMLImageElement);
+          } else {
+            imageCache.set(src, element as HTMLCanvasElement);
+          }
           setState({
-            element: canvas,
+            element,
             loading: false,
             error: false
           });
@@ -85,7 +103,7 @@ export function useImageLoader(src: string): ImageState {
     return () => {
       // Nothing to cleanup for promise-based loading
     };
-  }, [src]);
+  }, [src, skipCanvasConversion]);
 
   return state;
 }

@@ -18,7 +18,8 @@ function KonvaImageElement({ element, handleElementChange, setSelectedElement }:
   handleElementChange: (id: string, changes: any) => void;
   setSelectedElement: (id: string) => void;
 }) {
-  const { element: imageElement, loading, error } = useImageLoader(element.src);
+  // For GIFs, skip canvas conversion to preserve proper dimensions for Transformer
+  const { element: imageElement, loading, error } = useImageLoader(element.src, element.isGif || false);
 
   // Don't render anything if image is still loading or failed to load
   if (loading || error || !imageElement) {
