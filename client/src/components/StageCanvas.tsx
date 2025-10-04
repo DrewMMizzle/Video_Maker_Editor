@@ -13,10 +13,11 @@ import { exportVideoWithKonvaStage } from '@/lib/exportVideo';
 import Konva from 'konva';
 
 // Component for rendering images with proper loading state
-function KonvaImageElement({ element, handleElementChange, setSelectedElement }: {
+function KonvaImageElement({ element, handleElementChange, setSelectedElement, isSelected }: {
   element: any;
   handleElementChange: (id: string, changes: any) => void;
   setSelectedElement: (id: string) => void;
+  isSelected: boolean;
 }) {
   // For GIFs, skip canvas conversion to preserve proper dimensions for Transformer
   const { element: imageElement, loading, error } = useImageLoader(element.src, element.isGif || false);
@@ -25,6 +26,11 @@ function KonvaImageElement({ element, handleElementChange, setSelectedElement }:
   if (loading || error || !imageElement) {
     return null;
   }
+
+  // When GIF is selected, increase opacity to show static frame under Transformer handles
+  const konvaOpacity = element.isGif 
+    ? (isSelected ? 0.8 : 0.01)
+    : element.opacity;
 
   return (
     <Image
@@ -36,7 +42,7 @@ function KonvaImageElement({ element, handleElementChange, setSelectedElement }:
       y={element.y - element.height / 2}
       width={element.width}
       height={element.height}
-      opacity={element.isGif ? 0.01 : element.opacity}
+      opacity={konvaOpacity}
       rotation={element.rotation}
       draggable
       onClick={(e) => {
@@ -724,6 +730,7 @@ export default function StageCanvas() {
                         element={element}
                         handleElementChange={handleElementChange}
                         setSelectedElement={setSelectedElement}
+                        isSelected={selectedElementId === element.id}
                       />
                     );
                   }
@@ -779,7 +786,7 @@ export default function StageCanvas() {
                       height: `${height}px`,
                       transform: `rotate(${element.rotation}deg)`,
                       transformOrigin: 'center center',
-                      opacity: isSelected ? element.opacity * 0.3 : element.opacity,
+                      opacity: isSelected ? element.opacity * 0.05 : element.opacity,
                       pointerEvents: 'none',
                       imageRendering: 'auto'
                     }}
