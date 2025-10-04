@@ -246,6 +246,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Asset is not a video file' });
       }
       
+      // Get duration from request body (default to 10 seconds)
+      // 999 is used as a sentinel value for "full video length"
+      const rawDuration = req.body?.duration;
+      const duration = Number(rawDuration ?? 10);
+      
+      // Validate duration: must be a finite number, 5-30 seconds, or 999 (full length)
+      if (!Number.isFinite(duration) || (duration !== 999 && (duration < 5 || duration > 30))) {
+        return res.status(400).json({ 
+          error: 'Duration must be between 5 and 30 seconds, or 999 for full video length' 
+        });
+      }
+      
       const objectStorageService = new ObjectStorageService();
       
       // Download MP4 from object storage to temp file
@@ -261,7 +273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const scriptPath = path.join(process.cwd(), 'server', 'convertToGif.py');
       const pythonPath = path.join(process.cwd(), '.pythonlibs', 'bin', 'python3');
       const { stdout, stderr } = await execAsync(
-        `"${pythonPath}" "${scriptPath}" "${inputPath}" "${outputPath}" 10 10 500`
+        `"${pythonPath}" "${scriptPath}" "${inputPath}" "${outputPath}" ${duration} 10 500`
       );
       
       if (stderr && !stderr.includes('SUCCESS')) {

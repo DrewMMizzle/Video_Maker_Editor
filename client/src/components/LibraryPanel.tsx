@@ -6,6 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, Search, Trash2, ImageIcon, Plus, Video, RefreshCw } from 'lucide-react';
 import { ObjectUploader } from './ObjectUploader';
@@ -17,6 +21,10 @@ export default function LibraryPanel() {
   const { toast } = useToast();
   const { addElement } = useProject();
   const [searchTerm, setSearchTerm] = useState('');
+  const [convertDialogOpen, setConvertDialogOpen] = useState(false);
+  const [selectedAssetForConvert, setSelectedAssetForConvert] = useState<Asset | null>(null);
+  const [convertDuration, setConvertDuration] = useState(10);
+  const [useFullLength, setUseFullLength] = useState(false);
 
   // Fetch assets from the API
   const { 
@@ -135,12 +143,15 @@ export default function LibraryPanel() {
 
   // Convert to GIF mutation
   const convertMutation = useMutation({
-    mutationFn: async (assetId: string) => {
-      const response = await apiRequest('POST', `/api/assets/${assetId}/convert-to-gif`);
+    mutationFn: async ({ assetId, duration }: { assetId: string; duration: number }) => {
+      const response = await apiRequest('POST', `/api/assets/${assetId}/convert-to-gif`, {
+        duration,
+      });
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
+      setConvertDialogOpen(false);
       toast({
         title: 'Conversion successful',
         description: 'MP4 has been converted to GIF and added to your library',
@@ -335,19 +346,15 @@ export default function LibraryPanel() {
                             className="flex-1 h-7 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
-                              convertMutation.mutate(asset.id);
+                              setSelectedAssetForConvert(asset);
+                              setConvertDuration(10);
+                              setUseFullLength(false);
+                              setConvertDialogOpen(true);
                             }}
                             disabled={convertMutation.isPending}
                             data-testid={`button-convert-${asset.id}`}
                           >
-                            {convertMutation.isPending ? (
-                              <>
-                                <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-                                Converting...
-                              </>
-                            ) : (
-                              'Convert to GIF'
-                            )}
+                            Convert to GIF
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -436,6 +443,98 @@ export default function LibraryPanel() {
           Processing upload...
         </div>
       )}
+
+      {/* Conversion Dialog */}
+      <Dialog open={convertDialogOpen} onOpenChange={setConvertDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Convert MP4 to GIF</DialogTitle>
+            <DialogDescription>
+              Choose the duration for your GIF. Longer durations create larger files.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="duration-slider">
+                  Duration: {useFullLength ? 'Full video' : `${convertDuration} seconds`}
+                </Label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="full-length"
+                  checked={useFullLength}
+                  onCheckedChange={(checked) => setUseFullLength(checked as boolean)}
+                />
+                <label
+                  htmlFor="full-length"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Use full video length
+                </label>
+              </div>
+
+              {!useFullLength && (
+                <div className="space-y-2">
+                  <Slider
+                    id="duration-slider"
+                    min={5}
+                    max={30}
+                    step={1}
+                    value={[convertDuration]}
+                    onValueChange={(value) => setConvertDuration(value[0])}
+                    className="w-full"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>5s</span>
+                    <span>30s</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {selectedAssetForConvert && (
+              <div className="text-sm text-muted-foreground">
+                Converting: {selectedAssetForConvert.filename}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConvertDialogOpen(false)}
+              disabled={convertMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedAssetForConvert) {
+                  // Use 999 as a sentinel value for "full length" on the backend
+                  const duration = useFullLength ? 999 : convertDuration;
+                  convertMutation.mutate({
+                    assetId: selectedAssetForConvert.id,
+                    duration,
+                  });
+                }
+              }}
+              disabled={convertMutation.isPending}
+            >
+              {convertMutation.isPending ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Converting...
+                </>
+              ) : (
+                'Convert'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

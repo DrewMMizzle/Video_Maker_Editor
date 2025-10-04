@@ -31,7 +31,8 @@ def convert_mp4_to_gif(input_path, output_path, max_duration=10, target_fps=10, 
         # Read frames from video (using default ffmpeg backend)
         frames = []
         frame_count = 0
-        max_frames = int(max_duration * target_fps)
+        # 999 is a sentinel value for "full video length"
+        max_frames = None if max_duration >= 999 else int(max_duration * target_fps)
         
         for frame in iio.imiter(input_path):
             if frame_count % frame_skip == 0:
@@ -46,8 +47,8 @@ def convert_mp4_to_gif(input_path, output_path, max_duration=10, target_fps=10, 
                 
                 frames.append(pil_frame)
                 
-                # Stop if we've reached max duration
-                if len(frames) >= max_frames:
+                # Stop if we've reached max duration (only if max_frames is set)
+                if max_frames is not None and len(frames) >= max_frames:
                     break
             
             frame_count += 1
