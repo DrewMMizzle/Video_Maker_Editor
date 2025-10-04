@@ -35,7 +35,7 @@ function KonvaImageElement({ element, handleElementChange, setSelectedElement }:
       y={element.y - element.height / 2}
       width={element.width}
       height={element.height}
-      opacity={element.opacity}
+      opacity={element.isGif ? 0 : element.opacity}
       rotation={element.rotation}
       draggable
       onClick={(e) => {
@@ -712,6 +712,7 @@ export default function StageCanvas() {
                   if (element.type === 'image') {
                     return (
                       <KonvaImageElement
+                        key={element.id}
                         element={element}
                         handleElementChange={handleElementChange}
                         setSelectedElement={setSelectedElement}
