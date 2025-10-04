@@ -36,7 +36,7 @@ function KonvaImageElement({ element, handleElementChange, setSelectedElement }:
       y={element.y - element.height / 2}
       width={element.width}
       height={element.height}
-      opacity={element.isGif ? 0 : element.opacity}
+      opacity={element.isGif ? 0.01 : element.opacity}
       rotation={element.rotation}
       draggable
       onClick={(e) => {
