@@ -23,6 +23,7 @@ export default function PropertiesPanel() {
     duplicateElement,
     deleteElement,
     updateCanvas,
+    updatePane,
   } = useProject();
 
   const activePane = project?.panes.find(p => p.id === project.activePaneId);
@@ -270,6 +271,45 @@ export default function PropertiesPanel() {
                         data-testid="input-corner-radius"
                       />
                     </div>
+
+                    {selectedElement.isGif && activePane && (
+                      <div className="p-3 bg-muted/50 rounded-md space-y-2">
+                        <div>
+                          <Label htmlFor="gif-scene-duration" className="text-sm font-medium">GIF Playback Duration</Label>
+                          <p className="text-xs text-muted-foreground mt-1 mb-2">
+                            This GIF loops continuously for the scene duration
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Slider
+                              id="gif-scene-duration"
+                              min={1}
+                              max={10}
+                              step={0.5}
+                              value={[activePane.durationSec]}
+                              onValueChange={([value]) => updatePane(activePane.id, { durationSec: value })}
+                              className="flex-1"
+                              data-testid="slider-gif-scene-duration"
+                            />
+                            <Input
+                              type="number"
+                              min={1}
+                              max={10}
+                              step={0.5}
+                              value={activePane.durationSec}
+                              onChange={(e) => {
+                                const value = Math.min(10, Math.max(1, Number(e.target.value)));
+                                updatePane(activePane.id, { durationSec: value });
+                              }}
+                              className="w-16 h-8 text-sm"
+                              data-testid="input-gif-scene-duration"
+                            />
+                            <span className="text-xs text-muted-foreground">sec</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
 
