@@ -8,13 +8,32 @@ import { PlaybackControls } from '@/components/PlaybackControls';
 import { useProject } from '@/store/useProject';
 
 export default function Editor() {
-  const { project, createProject } = useProject();
+  const { project, createProject, selectedElementId, deleteElement } = useProject();
 
   useEffect(() => {
     if (!project) {
       createProject();
     }
   }, [project, createProject]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedElementId) {
+        const target = e.target as HTMLElement;
+        const isInputField = target.tagName === 'INPUT' || 
+                            target.tagName === 'TEXTAREA' || 
+                            target.isContentEditable;
+        
+        if (!isInputField) {
+          e.preventDefault();
+          deleteElement(selectedElementId);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedElementId, deleteElement]);
 
   if (!project) {
     return (
