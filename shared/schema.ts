@@ -57,7 +57,7 @@ export const iconElementSchema = elementBaseSchema.extend({
 export const paneSchema = z.object({
   id: z.string(),
   name: z.string(),
-  durationSec: z.number().min(1).max(10).default(3),
+  durationSec: z.number().min(1).max(60).default(3),
   bgColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default('#ffffff'),
   elements: z.array(z.union([textElementSchema, imageElementSchema, iconElementSchema])),
   thumbnail: z.string().optional(),

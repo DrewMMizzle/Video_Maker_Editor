@@ -285,7 +285,7 @@ export default function PropertiesPanel() {
                             <Slider
                               id="gif-scene-duration"
                               min={1}
-                              max={10}
+                              max={60}
                               step={0.5}
                               value={[activePane.durationSec]}
                               onValueChange={([value]) => updatePane(activePane.id, { durationSec: value })}
@@ -295,11 +295,11 @@ export default function PropertiesPanel() {
                             <Input
                               type="number"
                               min={1}
-                              max={10}
+                              max={60}
                               step={0.5}
                               value={activePane.durationSec}
                               onChange={(e) => {
-                                const value = Math.min(10, Math.max(1, Number(e.target.value)));
+                                const value = Math.min(60, Math.max(1, Number(e.target.value)));
                                 updatePane(activePane.id, { durationSec: value });
                               }}
                               className="w-16 h-8 text-sm"
