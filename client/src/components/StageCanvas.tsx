@@ -47,6 +47,13 @@ function KonvaImageElement({ element, handleElementChange, setSelectedElement }:
         e.cancelBubble = true;
         setSelectedElement(element.id);
       }}
+      onDragMove={(e) => {
+        // Update position in real-time for smooth GIF overlay sync
+        handleElementChange(element.id, {
+          x: e.target.x() + element.width / 2,
+          y: e.target.y() + element.height / 2,
+        });
+      }}
       onDragEnd={(e) => {
         handleElementChange(element.id, {
           x: e.target.x() + element.width / 2,
@@ -757,6 +764,8 @@ export default function StageCanvas() {
                 const left = groupX + centerX - width / 2;
                 const top = groupY + centerY - height / 2;
                 
+                const isSelected = selectedElementId === element.id;
+                
                 return (
                   <img
                     key={`gif-${element.id}`}
@@ -770,7 +779,7 @@ export default function StageCanvas() {
                       height: `${height}px`,
                       transform: `rotate(${element.rotation}deg)`,
                       transformOrigin: 'center center',
-                      opacity: element.opacity,
+                      opacity: isSelected ? element.opacity * 0.3 : element.opacity,
                       pointerEvents: 'none',
                       imageRendering: 'auto'
                     }}
