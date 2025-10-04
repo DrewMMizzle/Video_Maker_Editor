@@ -99,7 +99,7 @@ const createDefaultProject = (): Project => ({
       id: nanoid(),
       name: 'Scene 1',
       durationSec: 3,
-      bgColor: '#3b82f6',
+      bgColor: '#ffffff',
       elements: [
         {
           id: nanoid(),
@@ -114,7 +114,7 @@ const createDefaultProject = (): Project => ({
           fontSize: 48,
           fontWeight: 700,
           lineHeight: 1.2,
-          color: '#ffffff',
+          color: '#000000',
           align: 'center',
           padding: 32,
         }
@@ -124,7 +124,7 @@ const createDefaultProject = (): Project => ({
       id: nanoid(),
       name: 'Scene 2',
       durationSec: 4,
-      bgColor: '#10b981',
+      bgColor: '#ffffff',
       elements: [
         {
           id: nanoid(),
@@ -139,7 +139,7 @@ const createDefaultProject = (): Project => ({
           fontSize: 32,
           fontWeight: 500,
           lineHeight: 1.5,
-          color: '#ffffff',
+          color: '#000000',
           align: 'center',
           padding: 24,
         }
@@ -202,7 +202,7 @@ export const useProject = create<ProjectState>()(
           id: nanoid(),
           name: `Scene ${panes.length + 1}`,
           durationSec: previousPane?.durationSec ?? 3,
-          bgColor: previousPane?.bgColor ?? '#3b82f6',
+          bgColor: previousPane?.bgColor ?? '#ffffff',
           elements: [],
         };
         
