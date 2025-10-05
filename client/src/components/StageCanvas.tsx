@@ -745,7 +745,8 @@ export default function StageCanvas() {
                   rotateEnabled
                   enabledAnchors={[
                     'top-left','top-right','bottom-left','bottom-right',
-                    'middle-left','middle-right'
+                    'middle-left','middle-right',
+                    'top-center','bottom-center'
                   ]}
                   boundBoxFunc={(oldBox, newBox) => {
                     if (newBox.width < 5 || newBox.height < 5) return oldBox;
