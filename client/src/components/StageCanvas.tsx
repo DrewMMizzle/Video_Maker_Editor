@@ -779,6 +779,7 @@ export default function StageCanvas() {
                     key={`gif-${element.id}`}
                     src={element.src}
                     alt=""
+                    className="gif-overlay"
                     style={{
                       position: 'absolute',
                       left: `${left}px`,
@@ -788,8 +789,7 @@ export default function StageCanvas() {
                       transform: `rotate(${element.rotation}deg)`,
                       transformOrigin: 'center center',
                       opacity: isSelected ? element.opacity * 0.05 : element.opacity,
-                      pointerEvents: 'none',
-                      imageRendering: 'crisp-edges'
+                      pointerEvents: 'none'
                     }}
                   />
                 );
