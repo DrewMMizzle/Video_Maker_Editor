@@ -340,26 +340,32 @@ export default function StageCanvas() {
     const layer = layerRef.current;
     if (!tr || !layer) return;
 
-    let node: Konva.Node | null = null;
+    // Use requestAnimationFrame to ensure the layer has rendered before attaching transformer
+    const attachTransformer = () => {
+      let node: Konva.Node | null = null;
 
-    if (selectedElementId) {
-      try {
-        const safe = escapeId(selectedElementId);
-        node = layer.findOne<Konva.Node>(`#${safe}`) ?? null;
-      } catch {
-        node = null;
+      if (selectedElementId) {
+        try {
+          const safe = escapeId(selectedElementId);
+          node = layer.findOne<Konva.Node>(`#${safe}`) ?? null;
+        } catch {
+          node = null;
+        }
       }
-    }
 
-    if (node) {
-      tr.nodes([node]);
-      setSelectedNode(node);
-    } else {
-      tr.nodes([]); // <-- never pass undefined
-      setSelectedNode(null);
-    }
-    tr.getLayer()?.batchDraw();
-  }, [selectedElementId, activePane?.elements.length]);
+      if (node) {
+        tr.nodes([node]);
+        setSelectedNode(node);
+      } else {
+        tr.nodes([]); // <-- never pass undefined
+        setSelectedNode(null);
+      }
+      tr.getLayer()?.batchDraw();
+    };
+
+    // Ensure the layer is fully rendered before attaching
+    requestAnimationFrame(attachTransformer);
+  }, [selectedElementId, activePane?.elements.length, activePane?.id]);
 
   // Set up video export function when stage is ready
   useEffect(() => {
