@@ -789,7 +789,7 @@ export default function StageCanvas() {
                       transformOrigin: 'center center',
                       opacity: isSelected ? element.opacity * 0.05 : element.opacity,
                       pointerEvents: 'none',
-                      imageRendering: 'auto'
+                      imageRendering: 'crisp-edges'
                     }}
                   />
                 );
