@@ -149,7 +149,17 @@ export default function StageCanvas() {
   const handleTextClick = useKonvaDoubleClick({
     onDouble: (e) => {
       e.cancelBubble = true;
-      const elementId = e.target.id();
+      
+      // Find the correct selectable element (same logic as the hook)
+      let targetNode: any = e.target;
+      const selectable = e.target.findAncestor((node: any) => 
+        node.name()?.includes('selectable'), true
+      );
+      if (selectable) {
+        targetNode = selectable;
+      }
+      
+      const elementId = (typeof targetNode?.id === 'function' ? targetNode.id() : targetNode?.id) || '';
       const stage = stageRef.current;
       const textNode = textRefsRef.current[elementId]?.current;
       const element = activePane?.elements.find(el => el.id === elementId);
@@ -173,8 +183,20 @@ export default function StageCanvas() {
     },
     onSingle: (e) => {
       e.cancelBubble = true;
-      const elementId = e.target.id();
-      setSelectedElement(elementId);
+      
+      // Find the correct selectable element (same logic as the hook)
+      let targetNode: any = e.target;
+      const selectable = e.target.findAncestor((node: any) => 
+        node.name()?.includes('selectable'), true
+      );
+      if (selectable) {
+        targetNode = selectable;
+      }
+      
+      const elementId = (typeof targetNode?.id === 'function' ? targetNode.id() : targetNode?.id) || '';
+      if (elementId) {
+        setSelectedElement(elementId);
+      }
     },
     timeoutMs: 300,
     moveTol: 6
@@ -400,15 +422,20 @@ export default function StageCanvas() {
       // Ignore clicks on transformer handles to prevent deselection during resize/rotate
       if (target.findAncestor('Transformer', true)) return;
 
-      // Look for nearest selectable ancestor first, then fall back to ID
-      const selectable = target.findAncestor((node: Konva.Node) => 
-        node.name()?.includes('selectable'), true
-      ) || target;
-
-      // If selectable element has an ID and isn't the stage, select it
-      if (selectable !== stage && selectable.id()) {
-        setSelectedElement(selectable.id());
+      // Check if the target itself is selectable, or find nearest selectable ancestor
+      let selectable: Konva.Node | null = null;
+      if (target.name()?.includes('selectable')) {
+        selectable = target;
       } else {
+        selectable = target.findAncestor((node: Konva.Node) => 
+          node.name()?.includes('selectable'), true
+        );
+      }
+
+      // If we found a selectable element with an ID, select it
+      if (selectable && selectable !== stage && selectable.id()) {
+        setSelectedElement(selectable.id());
+      } else if (!selectable || selectable === stage) {
         // Clicked on stage background - clear selection
         setSelectedElement(null);
       }
@@ -657,7 +684,7 @@ export default function StageCanvas() {
                 )}
 
                 {/* Elements */}
-                {activePane.elements.map(element => {
+                {[...activePane.elements].sort((a, b) => (a.z || 0) - (b.z || 0)).map(element => {
                   if (element.type === 'text') {
                     // Use shared refs object to avoid Rules of Hooks violation
                     if (!textRefsRef.current[element.id]) {
