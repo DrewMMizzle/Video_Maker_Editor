@@ -2,7 +2,7 @@ import { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react
 import { Stage, Layer, Text, Image, Rect, Transformer, Line, Group } from 'react-konva';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Type, ImagePlus, Shapes, Grid3X3, Focus, Upload, FolderOpen, ChevronDown } from 'lucide-react';
+import { Type, ImagePlus, Shapes, Focus, Upload, FolderOpen, ChevronDown } from 'lucide-react';
 import { useProject } from '@/store/useProject';
 import { nanoid } from 'nanoid';
 import { ZoomControls } from '@/components/ZoomControls';
@@ -15,11 +15,12 @@ import IconPickerModal from './IconPickerModal';
 import { getIconComponent } from '@/lib/icons';
 
 // Component for rendering images with proper loading state
-function KonvaImageElement({ element, handleElementChange, setSelectedElement, isSelected }: {
+function KonvaImageElement({ element, handleElementChange, setSelectedElement, isSelected, setShowGrid }: {
   element: any;
   handleElementChange: (id: string, changes: any) => void;
   setSelectedElement: (id: string) => void;
   isSelected: boolean;
+  setShowGrid: (show: boolean) => void;
 }) {
   // For GIFs, skip canvas conversion to preserve proper dimensions for Transformer
   const { element: imageElement, loading, error } = useImageLoader(element.src, element.isGif || false);
@@ -55,6 +56,9 @@ function KonvaImageElement({ element, handleElementChange, setSelectedElement, i
         e.cancelBubble = true;
         setSelectedElement(element.id);
       }}
+      onDragStart={() => {
+        setShowGrid(true);
+      }}
       onDragMove={(e) => {
         // Update position in real-time for smooth GIF overlay sync
         handleElementChange(element.id, {
@@ -63,6 +67,7 @@ function KonvaImageElement({ element, handleElementChange, setSelectedElement, i
         });
       }}
       onDragEnd={(e) => {
+        setShowGrid(false);
         handleElementChange(element.id, {
           x: e.target.x() + element.width / 2,
           y: e.target.y() + element.height / 2,
@@ -94,7 +99,7 @@ export default function StageCanvas() {
     addElement,
     updateElement,
     showGrid,
-    toggleGrid,
+    setShowGrid,
     zoomLevel,
     isManualZoom,
     setZoom,
@@ -361,6 +366,21 @@ export default function StageCanvas() {
     };
   }, [zoomLevel, zoomIn, zoomOut, fitToScreen, setZoom]);
 
+  // Global mouseup/touchend to hide grid (ensures grid is hidden even if drag is interrupted)
+  useEffect(() => {
+    const hideGridOnPointerUp = () => {
+      setShowGrid(false);
+    };
+
+    window.addEventListener('mouseup', hideGridOnPointerUp);
+    window.addEventListener('touchend', hideGridOnPointerUp);
+
+    return () => {
+      window.removeEventListener('mouseup', hideGridOnPointerUp);
+      window.removeEventListener('touchend', hideGridOnPointerUp);
+    };
+  }, [setShowGrid]);
+
   useEffect(() => {
     const tr = transformerRef.current;
     const layer = layerRef.current;
@@ -597,15 +617,6 @@ export default function StageCanvas() {
             <div className="flex items-center gap-2">
               <ZoomControls />
               <div className="h-4 w-px bg-border"></div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={toggleGrid}
-                className={showGrid ? "bg-accent" : ""}
-                data-testid="button-toggle-grid"
-              >
-                <Grid3X3 className="w-4 h-4" />
-              </Button>
               <Button 
                 variant="ghost" 
                 size="sm"
@@ -736,7 +747,11 @@ export default function StageCanvas() {
 
                         onClick={handleTextClick}
                         onTap={handleTextClick}
+                        onDragStart={() => {
+                          setShowGrid(true);
+                        }}
                         onDragEnd={(e) => {
+                          setShowGrid(false);
                           const currentTextDims = calculateTextDimensions(element.text, element.fontSize, element.fontFamily, element.fontWeight);
                           handleElementChange(element.id, {
                             x: e.target.x() + (currentTextDims.width / 2),
@@ -770,6 +785,7 @@ export default function StageCanvas() {
                         handleElementChange={handleElementChange}
                         setSelectedElement={setSelectedElement}
                         isSelected={selectedElementId === element.id}
+                        setShowGrid={setShowGrid}
                       />
                     );
                   }
@@ -800,7 +816,11 @@ export default function StageCanvas() {
                           e.cancelBubble = true;
                           setSelectedElement(element.id);
                         }}
+                        onDragStart={() => {
+                          setShowGrid(true);
+                        }}
                         onDragEnd={(e) => {
+                          setShowGrid(false);
                           handleElementChange(element.id, {
                             x: e.target.x() + element.size / 2,
                             y: e.target.y() + element.size / 2,

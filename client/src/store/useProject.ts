@@ -48,7 +48,7 @@ interface ProjectState {
   
   // Canvas
   updateCanvas: (updates: { width?: number; height?: number; background?: string }) => void;
-  toggleGrid: () => void;
+  setShowGrid: (show: boolean) => void;
   
   // UI controls
   setActivePropertiesTab: (tab: string) => void;
@@ -501,8 +501,8 @@ export const useProject = create<ProjectState>()(
         });
       },
 
-      toggleGrid: () => {
-        set((state) => ({ showGrid: !state.showGrid }));
+      setShowGrid: (show: boolean) => {
+        set({ showGrid: show });
       },
 
       // UI controls
