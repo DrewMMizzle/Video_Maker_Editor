@@ -24,6 +24,8 @@ export default function PropertiesPanel() {
     deleteElement,
     updateCanvas,
     updatePane,
+    activePropertiesTab,
+    setActivePropertiesTab,
   } = useProject();
 
   const activePane = project?.panes.find(p => p.id === project.activePaneId);
@@ -40,7 +42,7 @@ export default function PropertiesPanel() {
   return (
     <aside className="w-80 border-l border-border bg-card" data-testid="properties-panel">
       <div className="h-full flex flex-col">
-        <Tabs defaultValue="properties" className="h-full flex flex-col">
+        <Tabs value={activePropertiesTab} onValueChange={setActivePropertiesTab} className="h-full flex flex-col">
           <TabsList className="grid w-full grid-cols-4 flex-shrink-0">
             <TabsTrigger value="properties" data-testid="tab-properties">Properties</TabsTrigger>
             <TabsTrigger value="document" data-testid="tab-document">Document</TabsTrigger>

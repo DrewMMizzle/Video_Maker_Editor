@@ -101,6 +101,7 @@ export default function StageCanvas() {
     fitToScreen,
     setActivePane,
     setExportVideoFunction,
+    setActivePropertiesTab,
   } = useProject();
 
   const stageRef = useRef<Konva.Stage>(null);
@@ -474,9 +475,7 @@ export default function StageCanvas() {
 
   const handleAddImageFromLibrary = () => {
     // Switch to the Library tab in the Properties Panel
-    // This is handled by the UI - the user can click on library assets to add them
-    // For now, we could show a toast or do nothing as the Library panel already handles this
-    return;
+    setActivePropertiesTab('library');
   };
 
   const handleImageLoad = (event: React.ChangeEvent<HTMLInputElement>) => {

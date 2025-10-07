@@ -13,6 +13,9 @@ interface ProjectState {
   isExporting: boolean;
   activeTemplates: Record<string, { templateId: string; originalElements: KonvaElement[] }>;
   
+  // UI state
+  activePropertiesTab: string;
+  
   // Zoom state
   zoomLevel: number;
   isManualZoom: boolean;
@@ -46,6 +49,9 @@ interface ProjectState {
   // Canvas
   updateCanvas: (updates: { width?: number; height?: number; background?: string }) => void;
   toggleGrid: () => void;
+  
+  // UI controls
+  setActivePropertiesTab: (tab: string) => void;
   
   // Zoom controls
   setZoom: (zoom: number) => void;
@@ -160,6 +166,9 @@ export const useProject = create<ProjectState>()(
       isExporting: false,
       exportVideoWithStage: null,
       activeTemplates: {},
+      
+      // Default UI state
+      activePropertiesTab: 'properties',
       
       // Default zoom state
       zoomLevel: 1.0, // 100%
@@ -494,6 +503,11 @@ export const useProject = create<ProjectState>()(
 
       toggleGrid: () => {
         set((state) => ({ showGrid: !state.showGrid }));
+      },
+
+      // UI controls
+      setActivePropertiesTab: (tab: string) => {
+        set({ activePropertiesTab: tab });
       },
 
       // Zoom controls
