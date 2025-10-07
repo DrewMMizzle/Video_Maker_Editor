@@ -33,6 +33,7 @@ Preferred communication style: Simple, everyday language.
 - **Rendering Engine**: Konva.js for high-performance 2D canvas rendering
 - **Element Types**: Text, Image, and Icon elements with common properties (position, rotation, opacity, z-index)
 - **Transform Controls**: Interactive resize, rotate, and drag handles via Konva Transformer
+- **Grid System**: Auto-show alignment grid during element drag operations with global cleanup to handle interrupted drags
 - **Export System**: Canvas-to-video using MediaRecorder API and HTMLCanvasElement.captureStream()
 - **Aspect Ratios**: Configurable canvas dimensions with safe area overlay
 - **Animated GIF Support**: Hybrid rendering approach with HTML overlays for preview and frame compositing for export
