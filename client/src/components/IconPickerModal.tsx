@@ -16,7 +16,7 @@ export default function IconPickerModal({ open, onOpenChange, onSelectIcon }: Ic
   const [searchQuery, setSearchQuery] = useState('');
 
   const displayedIcons = useMemo(() => {
-    return searchIcons(searchQuery, 100);
+    return searchIcons(searchQuery, 10000);
   }, [searchQuery]);
 
   const handleIconClick = (iconName: string) => {
