@@ -1,0 +1,44 @@
+~/workspace$ # Switch to main branch
+git checkout main
+
+# Merge video branch into main
+git merge video
+
+# Push the updated main branch to origin
+git push origin main
+Switched to branch 'main'
+Your branch is up to date with 'origin/main'.
+Updating 9edfeba..e00e82c
+Fast-forward
+ attached_assets/image_1759635372670.png   | Bin 0 -> 102395 bytes
+ attached_assets/image_1759797792524.png   | Bin 0 -> 13133 bytes
+ attached_assets/image_1759799785645.png   | Bin 0 -> 1777 bytes
+ attached_assets/image_1759803567702.png   | Bin 0 -> 30086 bytes
+ attached_assets/image_1759804000769.png   | Bin 0 -> 67121 bytes
+ attached_assets/image_1759804157182.png   | Bin 0 -> 3237 bytes
+ attached_assets/image_1759804724410.png   | Bin 0 -> 17410 bytes
+ attached_assets/image_1759806800922.png   | Bin 0 -> 30304 bytes
+ attached_assets/image_1759807929280.png   | Bin 0 -> 1931 bytes
+ client/src/components/IconPickerModal.tsx |  85 +++++++++++++++++++++++++
+ client/src/components/PaneStrip.tsx       |  12 +++-
+ client/src/components/PropertiesPanel.tsx |   4 +-
+ client/src/components/StageCanvas.tsx     | 125 ++++++++++++++++++++++++++++++++++---
+ client/src/lib/icons.ts                   | 270 ++++++++++++++++++++++++++++++++++++++++++++++++++------------------------------
+ client/src/store/useProject.ts            |  14 +++++
+ package-lock.json                         |  27 ++++++++
+ package.json                              |   1 +
+ 17 files changed, 426 insertions(+), 112 deletions(-)
+ create mode 100644 attached_assets/image_1759635372670.png
+ create mode 100644 attached_assets/image_1759797792524.png
+ create mode 100644 attached_assets/image_1759799785645.png
+ create mode 100644 attached_assets/image_1759803567702.png
+ create mode 100644 attached_assets/image_1759804000769.png
+ create mode 100644 attached_assets/image_1759804157182.png
+ create mode 100644 attached_assets/image_1759804724410.png
+ create mode 100644 attached_assets/image_1759806800922.png
+ create mode 100644 attached_assets/image_1759807929280.png
+ create mode 100644 client/src/components/IconPickerModal.tsx
+Total 0 (delta 0), reused 0 (delta 0), pack-reused 0 (from 0)
+To https://github.com/DrewMMizzle/Video_Maker_Editor
+   9edfeba..e00e82c  main -> main
+~/workspace$ 
