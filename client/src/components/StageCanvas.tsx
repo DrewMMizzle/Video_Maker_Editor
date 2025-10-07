@@ -11,6 +11,7 @@ import { startInlineEdit } from '@/lib/inlineTextEditor';
 import { useImageLoader } from '@/hooks/useImageLoader';
 import { exportVideoWithKonvaStage } from '@/lib/exportVideo';
 import Konva from 'konva';
+import IconPickerModal from './IconPickerModal';
 
 // Component for rendering images with proper loading state
 function KonvaImageElement({ element, handleElementChange, setSelectedElement, isSelected }: {
@@ -119,6 +120,7 @@ export default function StageCanvas() {
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [selectedNode, setSelectedNode] = useState<Konva.Node | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   
   // Refs for text elements (fix for Rules of Hooks)
   const textRefsRef = useRef<Record<string, any>>({});
@@ -510,10 +512,14 @@ export default function StageCanvas() {
   };
 
   const handleAddIcon = () => {
+    setIconPickerOpen(true);
+  };
+
+  const handleSelectIcon = (iconName: string) => {
     const newIcon = {
       id: nanoid(),
       type: 'icon' as const,
-      name: 'star',
+      name: iconName,
       x: (project?.canvas.width || 1080) / 2,
       y: (project?.canvas.height || 1080) / 2,
       size: 48,
@@ -842,6 +848,12 @@ export default function StageCanvas() {
         accept="image/*"
         onChange={handleImageLoad}
         className="hidden"
+      />
+
+      <IconPickerModal
+        open={iconPickerOpen}
+        onOpenChange={setIconPickerOpen}
+        onSelectIcon={handleSelectIcon}
       />
     </main>
   );
