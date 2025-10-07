@@ -19,14 +19,14 @@ function kebabToTablerName(kebabName: string): string {
 
 // Helper to convert Tabler's IconPascalCase to kebab-case
 function tablerToKebabName(tablerName: string): string {
-  // Convert "IconArrowUp" to "arrow-up"
+  // Convert "IconArrowUp" to "arrow-up" or "Icon24Hours" to "24-hours"
   if (!tablerName.startsWith('Icon')) return tablerName;
   
   const withoutPrefix = tablerName.slice(4); // Remove "Icon" prefix
-  return withoutPrefix
-    .replace(/([A-Z])/g, '-$1')
-    .toLowerCase()
-    .slice(1); // Remove leading dash
+  const withDashes = withoutPrefix.replace(/([A-Z])/g, '-$1').toLowerCase();
+  
+  // Remove leading dash only if it exists (won't exist for numeric prefixes like "24Hours")
+  return withDashes.startsWith('-') ? withDashes.slice(1) : withDashes;
 }
 
 // Get all available Tabler icons in kebab-case format
