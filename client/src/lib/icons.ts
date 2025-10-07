@@ -147,26 +147,65 @@ export function searchIcons(query: string, limit: number = 50): string[] {
   }
   
   const allIcons = getAllIconNames();
+  const results: string[] = [];
+  const seenIcons = new Set<string>();
   
-  // Exact matches first
+  // Helper to add unique icons
+  const addUnique = (icons: string[]) => {
+    icons.forEach(icon => {
+      if (!seenIcons.has(icon)) {
+        seenIcons.add(icon);
+        results.push(icon);
+      }
+    });
+  };
+  
+  // 1. Exact icon name match (highest priority)
   const exactMatches = allIcons.filter(name => 
     name.toLowerCase() === searchTerm
   );
+  addUnique(exactMatches);
   
-  // Starts with matches
+  // 2. Keyword category match (e.g., "legal" → gavel, scale, balance)
+  const keywordMatches = ICON_KEYWORDS[searchTerm] || [];
+  const validKeywordMatches = keywordMatches.filter(icon => 
+    allIcons.includes(icon)
+  );
+  addUnique(validKeywordMatches);
+  
+  // 3. Partial keyword match (search term is part of a keyword)
+  const partialKeywordMatches: string[] = [];
+  Object.entries(ICON_KEYWORDS).forEach(([keyword, icons]) => {
+    if (keyword.includes(searchTerm)) {
+      partialKeywordMatches.push(...icons.filter(icon => allIcons.includes(icon)));
+    }
+  });
+  addUnique(partialKeywordMatches);
+  
+  // 4. Icons that start with search term
   const startsWithMatches = allIcons.filter(name => 
-    name.toLowerCase().startsWith(searchTerm) && 
-    !exactMatches.includes(name)
+    name.toLowerCase().startsWith(searchTerm)
   );
+  addUnique(startsWithMatches);
   
-  // Contains matches
+  // 5. Icons that contain search term
   const containsMatches = allIcons.filter(name => 
-    name.toLowerCase().includes(searchTerm) && 
-    !exactMatches.includes(name) && 
-    !startsWithMatches.includes(name)
+    name.toLowerCase().includes(searchTerm)
   );
+  addUnique(containsMatches);
   
-  return [...exactMatches, ...startsWithMatches, ...containsMatches].slice(0, limit);
+  // 6. Icons in keyword lists where the keyword contains the search term
+  const relatedKeywordMatches: string[] = [];
+  Object.entries(ICON_KEYWORDS).forEach(([keyword, icons]) => {
+    // Check if any icon in this keyword's list matches our search
+    const matchingIcons = icons.filter(icon => 
+      icon.toLowerCase().includes(searchTerm) && allIcons.includes(icon)
+    );
+    relatedKeywordMatches.push(...matchingIcons);
+  });
+  addUnique(relatedKeywordMatches);
+  
+  return results.slice(0, limit);
 }
 
 // Convert icon name to display format
