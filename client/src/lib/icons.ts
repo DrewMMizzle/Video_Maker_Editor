@@ -1,4 +1,4 @@
-import * as LucideIcons from 'lucide-react';
+import * as TablerIcons from '@tabler/icons-react';
 
 export interface IconDefinition {
   name: string;
@@ -7,57 +7,42 @@ export interface IconDefinition {
   keywords: string[];
 }
 
-// Categorize Lucide icons
-const ICON_CATEGORIES: Record<string, string[]> = {
-  'arrows': [
-    'arrow-up', 'arrow-down', 'arrow-left', 'arrow-right',
-    'arrow-up-right', 'arrow-down-right', 'arrow-down-left', 'arrow-up-left',
-    'chevron-up', 'chevron-down', 'chevron-left', 'chevron-right',
-    'move', 'move-diagonal', 'move-horizontal', 'move-vertical'
-  ],
-  'media': [
-    'play', 'pause', 'stop', 'skip-forward', 'skip-back', 'rewind', 'fast-forward',
-    'volume', 'volume-1', 'volume-2', 'volume-x', 'music', 'video', 'camera', 'image'
-  ],
-  'communication': [
-    'message-circle', 'message-square', 'mail', 'phone', 'phone-call',
-    'send', 'share', 'share-2', 'at-sign', 'hash'
-  ],
-  'interface': [
-    'menu', 'x', 'plus', 'minus', 'search', 'settings', 'more-horizontal', 'more-vertical',
-    'edit', 'edit-2', 'edit-3', 'trash', 'trash-2', 'save', 'download', 'upload'
-  ],
-  'business': [
-    'briefcase', 'building', 'building-2', 'home', 'office-building',
-    'chart-bar', 'chart-line', 'trending-up', 'trending-down', 'activity'
-  ],
-  'social': [
-    'heart', 'thumbs-up', 'thumbs-down', 'star', 'bookmark', 'flag',
-    'user', 'users', 'user-plus', 'user-minus', 'user-check'
-  ],
-  'objects': [
-    'book', 'calendar', 'clock', 'globe', 'map-pin', 'shopping-cart',
-    'credit-card', 'key', 'lock', 'unlock', 'shield', 'award'
-  ],
-  'shapes': [
-    'circle', 'square', 'triangle', 'hexagon', 'diamond', 'star',
-    'heart', 'droplet', 'flame', 'zap'
-  ]
-};
-
-// Get all available Lucide icons
-export function getAllIconNames(): string[] {
-  return Object.keys(LucideIcons).filter(name => 
-    name !== 'default' && 
-    name !== 'createLucideIcon' &&
-    typeof LucideIcons[name as keyof typeof LucideIcons] === 'function'
-  );
+// Helper to convert kebab-case to Tabler's IconPascalCase format
+function kebabToTablerName(kebabName: string): string {
+  // Convert "arrow-up" to "IconArrowUp"
+  const pascalCase = kebabName
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+  return `Icon${pascalCase}`;
 }
 
-// Get icon component by name
-export function getIconComponent(name: string): React.ComponentType<any> | null {
-  const iconName = name as keyof typeof LucideIcons;
-  const IconComponent = LucideIcons[iconName];
+// Helper to convert Tabler's IconPascalCase to kebab-case
+function tablerToKebabName(tablerName: string): string {
+  // Convert "IconArrowUp" to "arrow-up"
+  if (!tablerName.startsWith('Icon')) return tablerName;
+  
+  const withoutPrefix = tablerName.slice(4); // Remove "Icon" prefix
+  return withoutPrefix
+    .replace(/([A-Z])/g, '-$1')
+    .toLowerCase()
+    .slice(1); // Remove leading dash
+}
+
+// Get all available Tabler icons in kebab-case format
+export function getAllIconNames(): string[] {
+  return Object.keys(TablerIcons)
+    .filter(name => 
+      name.startsWith('Icon') && 
+      typeof TablerIcons[name as keyof typeof TablerIcons] === 'function'
+    )
+    .map(tablerToKebabName);
+}
+
+// Get icon component by kebab-case name
+export function getIconComponent(kebabName: string): React.ComponentType<any> | null {
+  const tablerName = kebabToTablerName(kebabName);
+  const IconComponent = TablerIcons[tablerName as keyof typeof TablerIcons];
   
   if (typeof IconComponent === 'function') {
     return IconComponent as React.ComponentType<any>;
@@ -97,26 +82,6 @@ export function searchIcons(query: string, limit: number = 50): string[] {
   return [...exactMatches, ...startsWithMatches, ...containsMatches].slice(0, limit);
 }
 
-// Get icons by category
-export function getIconsByCategory(category: string): string[] {
-  return ICON_CATEGORIES[category] || [];
-}
-
-// Get all categories
-export function getIconCategories(): string[] {
-  return Object.keys(ICON_CATEGORIES);
-}
-
-// Get category for an icon
-export function getIconCategory(iconName: string): string | null {
-  for (const [category, icons] of Object.entries(ICON_CATEGORIES)) {
-    if (icons.includes(iconName)) {
-      return category;
-    }
-  }
-  return null;
-}
-
 // Convert icon name to display format
 export function formatIconName(iconName: string): string {
   return iconName
@@ -128,7 +93,7 @@ export function formatIconName(iconName: string): string {
 // Get popular/recommended icons
 export function getPopularIcons(): string[] {
   return [
-    'star', 'heart', 'thumbs-up', 'check', 'x', 'plus', 'minus',
+    'star', 'heart', 'thumb-up', 'check', 'x', 'plus', 'minus',
     'arrow-right', 'arrow-left', 'arrow-up', 'arrow-down',
     'home', 'user', 'mail', 'phone', 'message-circle',
     'calendar', 'clock', 'search', 'settings', 'menu'
@@ -139,30 +104,6 @@ export function getPopularIcons(): string[] {
 export function isValidIconName(name: string): boolean {
   return getAllIconNames().includes(name);
 }
-
-// Get icon SVG path data (for custom rendering)
-export function getIconSVGData(iconName: string): string | null {
-  try {
-    const IconComponent = getIconComponent(iconName);
-    if (!IconComponent) return null;
-    
-    // This is a simplified approach - in practice, you might need 
-    // to render the component and extract the SVG path
-    return null;
-  } catch (error) {
-    return null;
-  }
-}
-
-// Icon presets for common use cases
-export const ICON_PRESETS = {
-  social: ['heart', 'thumbs-up', 'share-2', 'message-circle', 'users'],
-  business: ['briefcase', 'chart-bar', 'trending-up', 'building', 'award'],
-  media: ['play', 'pause', 'video', 'camera', 'image'],
-  interface: ['menu', 'search', 'settings', 'edit', 'trash-2'],
-  arrows: ['arrow-right', 'arrow-left', 'arrow-up', 'arrow-down', 'chevron-right'],
-  shapes: ['circle', 'square', 'triangle', 'star', 'heart']
-};
 
 // Get random icons for suggestions
 export function getRandomIcons(count: number = 12): string[] {
