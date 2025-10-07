@@ -828,8 +828,9 @@ export default function StageCanvas() {
 
                   return null;
                 })}
+                </Group>
 
-                {/* Transformer */}
+                {/* Transformer - outside scaled Group to avoid coordinate issues */}
                 <Transformer
                   ref={transformerRef}
                   rotateEnabled
@@ -843,7 +844,6 @@ export default function StageCanvas() {
                     return newBox;
                   }}
                 />
-                </Group>
               </Layer>
             </Stage>
 
