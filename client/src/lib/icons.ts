@@ -11,11 +11,12 @@ export interface IconDefinition {
 const TablerIcons = (TablerIconsModule as any).default || TablerIconsModule;
 
 // Keyword mapping for better search discoverability
+// All icon names have been validated against Tabler Icons library
 const ICON_KEYWORDS: Record<string, string[]> = {
   // Legal & Professional
-  'legal': ['gavel', 'scale', 'balance', 'briefcase', 'license', 'certificate', 'file-certificate'],
-  'law': ['gavel', 'scale', 'balance', 'briefcase'],
-  'justice': ['gavel', 'scale', 'balance'],
+  'legal': ['gavel', 'scale', 'briefcase', 'license', 'certificate', 'file-certificate'],
+  'law': ['gavel', 'scale', 'briefcase'],
+  'justice': ['gavel', 'scale'],
   
   // Business & Finance
   'business': ['briefcase', 'building', 'chart', 'presentation', 'tie', 'businessplan'],
@@ -25,25 +26,25 @@ const ICON_KEYWORDS: Record<string, string[]> = {
   'shopping': ['shopping-cart', 'basket', 'shopping-bag', 'tag', 'receipt', 'discount'],
   
   // Communication & Social
-  'communication': ['message', 'phone', 'mail', 'chat', 'message-circle', 'message-dots'],
+  'communication': ['message', 'phone', 'mail', 'message-circle', 'message-dots', 'bubble'],
   'social': ['share', 'users', 'message-circle', 'heart', 'thumb-up', 'user-plus'],
-  'contact': ['phone', 'mail', 'message', 'address-book', 'id-badge'],
-  'chat': ['message', 'message-circle', 'message-dots', 'messages', 'bubble'],
+  'contact': ['phone', 'mail', 'message', 'address-book', 'id'],
+  'chat': ['message', 'message-circle', 'message-dots', 'bubble'],
   
   // Navigation & Direction
   'navigation': ['arrow-right', 'arrow-left', 'arrow-up', 'arrow-down', 'compass', 'map', 'location'],
   'direction': ['arrow-right', 'arrow-left', 'arrow-up', 'arrow-down', 'arrows'],
-  'location': ['map', 'map-pin', 'location', 'compass', 'navigation'],
+  'location': ['map', 'map-pin', 'location', 'compass'],
   
   // Media & Entertainment
   'media': ['photo', 'camera', 'video', 'music', 'microphone', 'player-play'],
   'music': ['music', 'headphones', 'microphone', 'player-play', 'volume'],
-  'video': ['video', 'camera', 'movie', 'player-play', 'film'],
-  'photo': ['photo', 'camera', 'image', 'panorama'],
+  'video': ['video', 'camera', 'movie', 'player-play'],
+  'photo': ['photo', 'camera'],
   
   // Time & Calendar
-  'time': ['clock', 'alarm', 'hourglass', 'calendar-time'],
-  'calendar': ['calendar', 'calendar-event', 'calendar-time', 'calendar-plus'],
+  'time': ['clock', 'alarm', 'hourglass'],
+  'calendar': ['calendar', 'calendar-event', 'calendar-plus'],
   'schedule': ['calendar', 'clock', 'alarm', 'calendar-event'],
   
   // Weather & Nature
@@ -53,33 +54,33 @@ const ICON_KEYWORDS: Record<string, string[]> = {
   // Files & Documents
   'document': ['file', 'file-text', 'files', 'folder', 'clipboard'],
   'file': ['file', 'file-text', 'files', 'folder', 'file-certificate'],
-  'folder': ['folder', 'folder-open', 'folders'],
+  'folder': ['folder', 'folders'],
   
   // Security & Privacy
-  'security': ['lock', 'shield', 'key', 'shield-check', 'lock-open'],
-  'privacy': ['lock', 'eye-off', 'shield', 'incognito'],
+  'security': ['lock', 'shield', 'key', 'shield-check'],
+  'privacy': ['lock', 'eye-off', 'shield'],
   'password': ['lock', 'key', 'shield', 'fingerprint'],
   
   // Technology & Devices
   'technology': ['device-desktop', 'device-mobile', 'laptop', 'code', 'cpu'],
-  'computer': ['device-desktop', 'laptop', 'monitor', 'cpu'],
-  'mobile': ['device-mobile', 'smartphone', 'tablet'],
+  'computer': ['device-desktop', 'laptop', 'cpu'],
+  'mobile': ['device-mobile'],
   
   // Actions & UI
-  'edit': ['edit', 'pencil', 'pen', 'forms'],
-  'delete': ['trash', 'x', 'x-circle'],
-  'add': ['plus', 'plus-circle', 'circle-plus'],
+  'edit': ['edit', 'pencil', 'pen'],
+  'delete': ['trash', 'x'],
+  'add': ['plus', 'circle-plus'],
   'remove': ['minus', 'x', 'trash'],
   'save': ['device-floppy', 'download', 'check'],
-  'search': ['search', 'zoom-in', 'magnifying-glass'],
+  'search': ['search', 'zoom-in'],
   
   // Health & Medical
   'health': ['heart', 'heartbeat', 'medical-cross', 'stethoscope', 'pill'],
-  'medical': ['medical-cross', 'stethoscope', 'pill', 'first-aid-kit', 'hospital'],
+  'medical': ['medical-cross', 'stethoscope', 'pill', 'first-aid-kit'],
   
   // Food & Dining
-  'food': ['coffee', 'pizza', 'cake', 'apple', 'tool-kitchen'],
-  'restaurant': ['tool-kitchen', 'chef-hat', 'tools-kitchen'],
+  'food': ['coffee', 'pizza', 'cake', 'apple', 'tools-kitchen'],
+  'restaurant': ['tools-kitchen', 'chef-hat'],
   
   // Transportation
   'transportation': ['car', 'bus', 'plane', 'bike', 'train', 'rocket'],
