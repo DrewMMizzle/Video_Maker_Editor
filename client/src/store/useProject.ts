@@ -691,7 +691,7 @@ export const useProject = create<ProjectState>()(
             const newElements = template.elements.map(el => ({
               ...el,
               id: nanoid(),
-            } as KonvaElement));
+            })) as KonvaElement[];
 
             const newState = {
               ...state,
