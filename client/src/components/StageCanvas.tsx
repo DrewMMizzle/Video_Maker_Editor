@@ -775,6 +775,7 @@ export default function StageCanvas() {
                   }
 
                   if (element.type === 'icon') {
+                    const isSelected = selectedElementId === element.id;
                     // Render a placeholder rect for Konva transformer
                     return (
                       <Rect
@@ -785,8 +786,10 @@ export default function StageCanvas() {
                         y={element.y - element.size / 2}
                         width={element.size}
                         height={element.size}
-                        fill="transparent"
-                        opacity={0.01}
+                        fill={isSelected ? "rgba(59, 130, 246, 0.1)" : "transparent"}
+                        stroke={isSelected ? "#3b82f6" : undefined}
+                        strokeWidth={isSelected ? 2 : undefined}
+                        opacity={1}
                         rotation={element.rotation}
                         draggable
                         onClick={(e) => {
