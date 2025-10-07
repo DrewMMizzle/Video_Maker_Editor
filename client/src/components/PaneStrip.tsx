@@ -11,16 +11,21 @@ import { cn } from '@/lib/utils';
 import { nanoid } from 'nanoid';
 import { useEffect, useState } from 'react';
 
-function SortablePaneItem({ pane, isActive, onSelect, onUpdate, onDuplicate, onDelete }: {
+function SortablePaneItem({ pane, isActive, onSelect, onUpdate, onDuplicate, onDelete, sceneNumber }: {
   pane: any;
   isActive: boolean;
   onSelect: () => void;
   onUpdate: (updates: any) => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  sceneNumber: number;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(pane.name);
+
+  // Determine if this is a default scene name (Scene 1, Scene 2, etc.)
+  const isDefaultName = /^Scene \d+$/.test(pane.name);
+  const displayName = isDefaultName ? `Scene ${sceneNumber}` : pane.name;
 
   // Keep edit value in sync with pane name changes
   useEffect(() => {
@@ -107,7 +112,7 @@ function SortablePaneItem({ pane, isActive, onSelect, onUpdate, onDuplicate, onD
             onDoubleClick={handleStartEdit}
             data-testid={`text-scene-name-${pane.id}`}
           >
-            {pane.name}
+            {displayName}
           </span>
         )}
         <span className="text-xs text-muted-foreground ml-auto">{pane.durationSec.toFixed(1)}s</span>
@@ -268,7 +273,7 @@ export default function PaneStrip() {
         >
           <SortableContext items={project.panes} strategy={verticalListSortingStrategy}>
             <div className="space-y-2">
-              {project.panes.map(pane => (
+              {project.panes.map((pane, index) => (
                 <SortablePaneItem
                   key={pane.id}
                   pane={pane}
@@ -277,6 +282,7 @@ export default function PaneStrip() {
                   onUpdate={(updates) => updatePane(pane.id, updates)}
                   onDuplicate={() => duplicatePane(pane.id)}
                   onDelete={() => deletePane(pane.id)}
+                  sceneNumber={index + 1}
                 />
               ))}
             </div>

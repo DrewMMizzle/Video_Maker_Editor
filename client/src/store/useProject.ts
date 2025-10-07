@@ -379,26 +379,17 @@ export const useProject = create<ProjectState>()(
 
       deleteElement: (elementId: string) => {
         set((state) => {
-          console.log('[deleteElement] Deleting element:', elementId);
-          console.log('[deleteElement] Current selectedElementId:', state.selectedElementId);
-          
           const newState = {
             project: state.project ? {
               ...state.project,
-              panes: state.project.panes.map(pane => {
-                const filtered = pane.elements.filter(el => el.id !== elementId);
-                console.log(`[deleteElement] Pane ${pane.id}: ${pane.elements.length} -> ${filtered.length} elements`);
-                return {
-                  ...pane,
-                  elements: filtered,
-                };
-              }),
+              panes: state.project.panes.map(pane => ({
+                ...pane,
+                elements: pane.elements.filter(el => el.id !== elementId),
+              })),
               updatedAt: new Date().toISOString(),
             } : null,
             selectedElementId: state.selectedElementId === elementId ? null : state.selectedElementId,
           };
-
-          console.log('[deleteElement] New selectedElementId:', newState.selectedElementId);
 
           // Regenerate thumbnail for the active pane after deleting element
           if (state.project?.activePaneId) {

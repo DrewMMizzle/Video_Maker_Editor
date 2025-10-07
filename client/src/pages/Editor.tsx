@@ -25,7 +25,6 @@ export default function Editor() {
                             target.isContentEditable;
         
         if (!isInputField) {
-          console.log('[Editor] Delete key pressed, selectedElementId:', selectedElementId);
           e.preventDefault();
           deleteElement(selectedElementId);
         }
