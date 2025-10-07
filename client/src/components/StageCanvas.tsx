@@ -12,6 +12,7 @@ import { useImageLoader } from '@/hooks/useImageLoader';
 import { exportVideoWithKonvaStage } from '@/lib/exportVideo';
 import Konva from 'konva';
 import IconPickerModal from './IconPickerModal';
+import { getIconComponent } from '@/lib/icons';
 
 // Component for rendering images with proper loading state
 function KonvaImageElement({ element, handleElementChange, setSelectedElement, isSelected }: {
@@ -773,7 +774,55 @@ export default function StageCanvas() {
                     );
                   }
 
-                  // Icon rendering would go here
+                  if (element.type === 'icon') {
+                    // Render a placeholder rect for Konva transformer
+                    return (
+                      <Rect
+                        key={element.id}
+                        id={element.id}
+                        name="selectable icon"
+                        x={element.x - element.size / 2}
+                        y={element.y - element.size / 2}
+                        width={element.size}
+                        height={element.size}
+                        fill="transparent"
+                        opacity={0.01}
+                        rotation={element.rotation}
+                        draggable
+                        onClick={(e) => {
+                          e.cancelBubble = true;
+                          setSelectedElement(element.id);
+                        }}
+                        onTap={(e) => {
+                          e.cancelBubble = true;
+                          setSelectedElement(element.id);
+                        }}
+                        onDragEnd={(e) => {
+                          handleElementChange(element.id, {
+                            x: e.target.x() + element.size / 2,
+                            y: e.target.y() + element.size / 2,
+                          });
+                        }}
+                        onTransformEnd={(e) => {
+                          const node = e.target;
+                          const scaleX = node.scaleX();
+                          const scaleY = node.scaleY();
+                          const avgScale = (scaleX + scaleY) / 2;
+                          
+                          handleElementChange(element.id, {
+                            x: node.x() + (element.size * avgScale) / 2,
+                            y: node.y() + (element.size * avgScale) / 2,
+                            rotation: node.rotation(),
+                            size: element.size * avgScale,
+                          });
+                          
+                          node.scaleX(1);
+                          node.scaleY(1);
+                        }}
+                      />
+                    );
+                  }
+
                   return null;
                 })}
 
@@ -830,6 +879,54 @@ export default function StageCanvas() {
                       pointerEvents: 'none'
                     }}
                   />
+                );
+              })}
+
+            {/* Icon Overlays - HTML elements for Tabler Icons */}
+            {activePane.elements
+              .filter((el): el is Extract<typeof el, { type: 'icon' }> => el.type === 'icon')
+              .map(element => {
+                const IconComponent = getIconComponent(element.name);
+                if (!IconComponent) return null;
+
+                const groupX = (containerSize.width - project.canvas.width * canvasScale) / 2;
+                const groupY = (containerSize.height - project.canvas.height * canvasScale) / 2;
+                
+                const centerX = element.x * canvasScale;
+                const centerY = element.y * canvasScale;
+                const size = element.size * canvasScale;
+                
+                const left = groupX + centerX - size / 2;
+                const top = groupY + centerY - size / 2;
+                
+                const isSelected = selectedElementId === element.id;
+                
+                return (
+                  <div
+                    key={`icon-${element.id}`}
+                    className="icon-overlay"
+                    style={{
+                      position: 'absolute',
+                      left: `${left}px`,
+                      top: `${top}px`,
+                      width: `${size}px`,
+                      height: `${size}px`,
+                      transform: `rotate(${element.rotation}deg)`,
+                      transformOrigin: 'center center',
+                      opacity: isSelected ? element.opacity * 0.3 : element.opacity,
+                      pointerEvents: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <IconComponent 
+                      size={size}
+                      color={element.color}
+                      strokeWidth={element.strokeWidth}
+                      style={{ width: '100%', height: '100%' }}
+                    />
+                  </div>
                 );
               })}
 
