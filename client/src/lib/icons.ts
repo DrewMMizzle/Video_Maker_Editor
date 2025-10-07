@@ -1,4 +1,4 @@
-import * as TablerIcons from '@tabler/icons-react';
+import * as TablerIconsModule from '@tabler/icons-react';
 
 export interface IconDefinition {
   name: string;
@@ -6,6 +6,9 @@ export interface IconDefinition {
   category: string;
   keywords: string[];
 }
+
+// Handle both default and named exports
+const TablerIcons = (TablerIconsModule as any).default || TablerIconsModule;
 
 // Helper to convert kebab-case to Tabler's IconPascalCase format
 function kebabToTablerName(kebabName: string): string {
@@ -31,20 +34,24 @@ function tablerToKebabName(tablerName: string): string {
 
 // Get all available Tabler icons in kebab-case format
 export function getAllIconNames(): string[] {
-  return Object.keys(TablerIcons)
-    .filter(name => 
-      name.startsWith('Icon') && 
-      typeof TablerIcons[name as keyof typeof TablerIcons] === 'function'
-    )
-    .map(tablerToKebabName);
+  const allKeys = Object.keys(TablerIcons);
+  
+  // Tabler icons are React components (objects), not functions
+  const iconKeys = allKeys.filter(name => 
+    name.startsWith('Icon') && 
+    TablerIcons[name] !== undefined
+  );
+  
+  return iconKeys.map(tablerToKebabName);
 }
 
 // Get icon component by kebab-case name
 export function getIconComponent(kebabName: string): React.ComponentType<any> | null {
   const tablerName = kebabToTablerName(kebabName);
-  const IconComponent = TablerIcons[tablerName as keyof typeof TablerIcons];
+  const IconComponent = TablerIcons[tablerName];
   
-  if (typeof IconComponent === 'function') {
+  // Tabler icons are React components (objects), return if exists
+  if (IconComponent !== undefined) {
     return IconComponent as React.ComponentType<any>;
   }
   
