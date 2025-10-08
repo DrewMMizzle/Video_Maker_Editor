@@ -167,33 +167,25 @@ export default function CropOverlay({
   const handleSize = 8;
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none">
-      {/* Semi-transparent overlay over the image */}
-      <div
-        className="absolute pointer-events-none"
-        style={{
-          left: elementScreenX,
-          top: elementScreenY,
-          width: elementScreenWidth,
-          height: elementScreenHeight,
-          backgroundColor: 'rgba(0, 0, 0, 0.6)',
-        }}
-      />
-
-      {/* Crop rectangle with bright border */}
-      <div
-        className="absolute pointer-events-auto cursor-move"
-        style={{
-          left: cropScreenX,
-          top: cropScreenY,
-          width: cropScreenWidth,
-          height: cropScreenHeight,
-          border: '2px solid #3b82f6',
-          boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.6)',
-        }}
-        onMouseDown={(e) => handleMouseDown(e)}
-        data-testid="crop-rectangle"
-      >
+    <>
+      {/* Full-screen dark overlay - behind everything */}
+      <div className="fixed inset-0 z-40 bg-black/60 pointer-events-none" />
+      
+      <div className="fixed inset-0 z-50 pointer-events-none">
+        {/* Crop rectangle with bright border */}
+        <div
+          className="absolute pointer-events-auto cursor-move bg-transparent"
+          style={{
+            left: cropScreenX,
+            top: cropScreenY,
+            width: cropScreenWidth,
+            height: cropScreenHeight,
+            border: '2px solid #3b82f6',
+            boxShadow: '0 0 0 4px rgba(59, 130, 246, 0.3)',
+          }}
+          onMouseDown={(e) => handleMouseDown(e)}
+          data-testid="crop-rectangle"
+        >
         {/* Corner handles */}
         <div
           className="absolute bg-white border-2 border-blue-500 cursor-nw-resize"
@@ -325,5 +317,6 @@ export default function CropOverlay({
         </Button>
       </div>
     </div>
+    </>
   );
 }
