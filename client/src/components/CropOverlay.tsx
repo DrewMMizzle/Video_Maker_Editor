@@ -170,7 +170,7 @@ export default function CropOverlay({
     <div className="fixed inset-0 z-50 pointer-events-none">
       {/* Semi-transparent overlay over the image */}
       <div
-        className="absolute pointer-events-auto"
+        className="absolute pointer-events-none"
         style={{
           left: elementScreenX,
           top: elementScreenY,
