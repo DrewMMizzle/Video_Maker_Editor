@@ -56,6 +56,26 @@ Preferred communication style: Simple, everyday language.
   - Ensures images are immediately movable/resizable after upload without scene switching
   - Handles async loading, cached images, and multiple simultaneous uploads correctly
 
+### Image Cropping System
+- **Drag-and-Resize Crop UI**: Visual cropping interface replacing numeric inputs for intuitive image cropping
+- **CropOverlay Component**: Fixed overlay with semi-transparent dark background and interactive crop controls
+  - Bright blue crop rectangle with 8 resize handles (4 corners + 4 edges)
+  - Draggable rectangle for repositioning crop area
+  - Real-time dimensions tooltip showing crop size
+  - "Apply Crop" and "Cancel" buttons for confirming or discarding changes
+- **Rotation Handling**: Automatically resets image rotation to 0° during crop mode for accurate overlay alignment
+  - Stores original rotation and restores after cropping (Apply or Cancel)
+  - Handles element swaps: restores previous element's rotation before initializing new crop target
+  - Works seamlessly with both static images and animated GIFs
+- **Crop Calculations**: All crop operations use natural pixel space coordinates
+  - Crop values stored as `cropX`, `cropY`, `cropWidth`, `cropHeight` in element properties
+  - Screen space conversions account for canvas scale and zoom level
+  - Clamped to image bounds with minimum 10px crop size
+- **Properties Panel Integration**:
+  - Shows "Crop Image" button for uncropped images
+  - Shows "Edit Crop" and "Reset Crop" buttons for cropped images
+  - Reset removes all crop values and returns image to full size
+
 ### Brand Import System
 - **Web Scraping**: Playwright-based extraction of theme colors, CSS variables, and font information
 - **Color Extraction**: Automatic parsing of hex, RGB, and HSL color values from CSS
