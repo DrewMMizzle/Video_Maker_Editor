@@ -15,15 +15,23 @@ import IconPickerModal from './IconPickerModal';
 import { getIconComponent } from '@/lib/icons';
 
 // Component for rendering images with proper loading state
-function KonvaImageElement({ element, handleElementChange, setSelectedElement, isSelected, setShowGrid }: {
+function KonvaImageElement({ element, handleElementChange, setSelectedElement, isSelected, setShowGrid, onImageReady }: {
   element: any;
   handleElementChange: (id: string, changes: any) => void;
   setSelectedElement: (id: string) => void;
   isSelected: boolean;
   setShowGrid: (show: boolean) => void;
+  onImageReady?: (elementId: string) => void;
 }) {
   // For GIFs, skip canvas conversion to preserve proper dimensions for Transformer
   const { element: imageElement, loading, error } = useImageLoader(element.src, element.isGif || false);
+
+  // Notify parent when image is ready (MUST be before early return to follow Rules of Hooks)
+  useEffect(() => {
+    if (!loading && !error && imageElement && onImageReady) {
+      onImageReady(element.id);
+    }
+  }, [loading, error, imageElement, element.id, onImageReady]);
 
   // Don't render anything if image is still loading or failed to load
   if (loading || error || !imageElement) {
@@ -115,6 +123,9 @@ export default function StageCanvas() {
   const layerRef = useRef<Konva.Layer>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Track which images have finished loading to trigger transformer attachment
+  const [imageReadyIds, setImageReadyIds] = useState<Set<string>>(new Set());
 
   // Safely escape IDs for findOne selectors
   const escapeId = (id: string) => {
@@ -381,6 +392,12 @@ export default function StageCanvas() {
     };
   }, [setShowGrid]);
 
+  // Callback when an image finishes loading
+  const handleImageReady = useCallback((elementId: string) => {
+    // Add element ID to ready set to trigger transformer attachment effect
+    setImageReadyIds(prev => new Set(prev).add(elementId));
+  }, []);
+
   useEffect(() => {
     const tr = transformerRef.current;
     const layer = layerRef.current;
@@ -411,7 +428,7 @@ export default function StageCanvas() {
 
     // Ensure the layer is fully rendered before attaching
     requestAnimationFrame(attachTransformer);
-  }, [selectedElementId, activePane?.elements.length, activePane?.id]);
+  }, [selectedElementId, activePane?.elements.length, activePane?.id, imageReadyIds]);
 
   // Set up video export function when stage is ready
   useEffect(() => {
@@ -786,6 +803,7 @@ export default function StageCanvas() {
                         setSelectedElement={setSelectedElement}
                         isSelected={selectedElementId === element.id}
                         setShowGrid={setShowGrid}
+                        onImageReady={handleImageReady}
                       />
                     );
                   }
