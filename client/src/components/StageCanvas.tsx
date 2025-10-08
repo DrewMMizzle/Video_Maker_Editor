@@ -13,6 +13,7 @@ import { exportVideoWithKonvaStage } from '@/lib/exportVideo';
 import Konva from 'konva';
 import IconPickerModal from './IconPickerModal';
 import { getIconComponent } from '@/lib/icons';
+import CropOverlay from './CropOverlay';
 
 // Component for GIF overlay with proper crop support
 function GifOverlay({ element, left, top, width, height, isSelected }: {
@@ -193,6 +194,8 @@ export default function StageCanvas() {
     setActivePane,
     setExportVideoFunction,
     setActivePropertiesTab,
+    activeCropElementId,
+    setActiveCropElement,
   } = useProject();
 
   const stageRef = useRef<Konva.Stage>(null);
@@ -202,6 +205,9 @@ export default function StageCanvas() {
   
   // Track which images have finished loading to trigger transformer attachment
   const [imageReadyIds, setImageReadyIds] = useState<Set<string>>(new Set());
+  
+  // Track natural dimensions for crop overlay
+  const [cropNaturalDimensions, setCropNaturalDimensions] = useState<{ width: number; height: number } | null>(null);
 
   // Safely escape IDs for findOne selectors
   const escapeId = (id: string) => {
@@ -528,6 +534,26 @@ export default function StageCanvas() {
       setExportVideoFunction?.(null);
     };
   }, [stageRef.current, project, setExportVideoFunction, setActivePane]);
+
+  // Load natural dimensions when crop mode is activated
+  useEffect(() => {
+    if (!activeCropElementId || !activePane) {
+      setCropNaturalDimensions(null);
+      return;
+    }
+
+    const element = activePane.elements.find(el => el.id === activeCropElementId);
+    if (!element || element.type !== 'image') {
+      setCropNaturalDimensions(null);
+      return;
+    }
+
+    const img = new window.Image();
+    img.onload = () => {
+      setCropNaturalDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.src = element.src;
+  }, [activeCropElementId, activePane]);
 
   const handleStagePointerDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
@@ -1061,6 +1087,32 @@ export default function StageCanvas() {
         onOpenChange={setIconPickerOpen}
         onSelectIcon={handleSelectIcon}
       />
+
+      {/* Crop overlay */}
+      {activeCropElementId && activePane && cropNaturalDimensions && (() => {
+        const cropElement = activePane.elements.find(el => el.id === activeCropElementId);
+        if (!cropElement || cropElement.type !== 'image') return null;
+
+        // Calculate canvas offset (same as in GifOverlay)
+        const canvasOffset = {
+          x: (containerSize.width - project!.canvas.width * canvasScale) / 2,
+          y: (containerSize.height - project!.canvas.height * canvasScale) / 2,
+        };
+
+        return (
+          <CropOverlay
+            element={cropElement}
+            canvasScale={canvasScale}
+            canvasOffset={canvasOffset}
+            naturalDimensions={cropNaturalDimensions}
+            onApply={(crop) => {
+              updateElement(activeCropElementId, crop);
+              setActiveCropElement(null);
+            }}
+            onCancel={() => setActiveCropElement(null)}
+          />
+        );
+      })()}
     </main>
   );
 }
