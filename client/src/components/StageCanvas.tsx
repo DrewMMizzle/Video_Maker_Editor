@@ -535,9 +535,18 @@ export default function StageCanvas() {
     };
   }, [stageRef.current, project, setExportVideoFunction, setActivePane]);
 
-  // Load natural dimensions when crop mode is activated
+  // Load natural dimensions and temporarily reset rotation when crop mode is activated
+  const cropModeStateRef = useRef<{ elementId: string; originalRotation: number } | null>(null);
+  
   useEffect(() => {
     if (!activeCropElementId || !activePane) {
+      // Restore rotation when exiting crop mode
+      if (cropModeStateRef.current) {
+        updateElement(cropModeStateRef.current.elementId, { 
+          rotation: cropModeStateRef.current.originalRotation 
+        });
+        cropModeStateRef.current = null;
+      }
       setCropNaturalDimensions(null);
       return;
     }
@@ -548,12 +557,32 @@ export default function StageCanvas() {
       return;
     }
 
+    // Detect element swap: if switching to a different element, restore previous and reinitialize
+    if (cropModeStateRef.current && cropModeStateRef.current.elementId !== activeCropElementId) {
+      updateElement(cropModeStateRef.current.elementId, { 
+        rotation: cropModeStateRef.current.originalRotation 
+      });
+      cropModeStateRef.current = null;
+    }
+
+    // Store original rotation and reset to 0 for cropping (only once per element)
+    if (!cropModeStateRef.current) {
+      cropModeStateRef.current = {
+        elementId: activeCropElementId,
+        originalRotation: element.rotation
+      };
+      
+      if (element.rotation !== 0) {
+        updateElement(activeCropElementId, { rotation: 0 });
+      }
+    }
+
     const img = new window.Image();
     img.onload = () => {
       setCropNaturalDimensions({ width: img.naturalWidth, height: img.naturalHeight });
     };
     img.src = element.src;
-  }, [activeCropElementId, activePane]);
+  }, [activeCropElementId, activePane, updateElement]);
 
   const handleStagePointerDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
