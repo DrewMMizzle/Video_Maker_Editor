@@ -274,6 +274,82 @@ export default function PropertiesPanel() {
                       />
                     </div>
 
+                    <Accordion type="single" collapsible className="w-full">
+                      <AccordionItem value="crop">
+                        <AccordionTrigger className="text-sm">Crop</AccordionTrigger>
+                        <AccordionContent>
+                          <div className="space-y-3 pt-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label htmlFor="crop-x" className="text-xs">X Position</Label>
+                                <Input
+                                  id="crop-x"
+                                  type="number"
+                                  value={(selectedElement as any).cropX ?? 0}
+                                  onChange={(e) => handleElementUpdate({ cropX: Number(e.target.value) })}
+                                  className="h-7 text-sm"
+                                  min={0}
+                                  data-testid="input-crop-x"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="crop-y" className="text-xs">Y Position</Label>
+                                <Input
+                                  id="crop-y"
+                                  type="number"
+                                  value={(selectedElement as any).cropY ?? 0}
+                                  onChange={(e) => handleElementUpdate({ cropY: Number(e.target.value) })}
+                                  className="h-7 text-sm"
+                                  min={0}
+                                  data-testid="input-crop-y"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label htmlFor="crop-width" className="text-xs">Width</Label>
+                                <Input
+                                  id="crop-width"
+                                  type="number"
+                                  value={(selectedElement as any).cropWidth ?? selectedElement.width}
+                                  onChange={(e) => handleElementUpdate({ cropWidth: Number(e.target.value) })}
+                                  className="h-7 text-sm"
+                                  min={1}
+                                  data-testid="input-crop-width"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="crop-height" className="text-xs">Height</Label>
+                                <Input
+                                  id="crop-height"
+                                  type="number"
+                                  value={(selectedElement as any).cropHeight ?? selectedElement.height}
+                                  onChange={(e) => handleElementUpdate({ cropHeight: Number(e.target.value) })}
+                                  className="h-7 text-sm"
+                                  min={1}
+                                  data-testid="input-crop-height"
+                                />
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleElementUpdate({ 
+                                cropX: undefined, 
+                                cropY: undefined, 
+                                cropWidth: undefined, 
+                                cropHeight: undefined 
+                              })}
+                              className="w-full h-7 text-xs"
+                              data-testid="button-reset-crop"
+                            >
+                              Reset Crop
+                            </Button>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
+
                     {selectedElement.isGif && activePane && (
                       <div className="p-3 bg-muted/50 rounded-md space-y-2">
                         <div>

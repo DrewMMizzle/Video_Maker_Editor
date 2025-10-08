@@ -29,6 +29,11 @@ export interface KonvaImage extends KonvaElement {
   width: number;
   height: number;
   cornerRadius?: number;
+  isGif?: boolean;
+  cropX?: number;
+  cropY?: number;
+  cropWidth?: number;
+  cropHeight?: number;
 }
 
 export interface KonvaIcon extends KonvaElement {

@@ -14,6 +14,75 @@ import Konva from 'konva';
 import IconPickerModal from './IconPickerModal';
 import { getIconComponent } from '@/lib/icons';
 
+// Component for GIF overlay with proper crop support
+function GifOverlay({ element, left, top, width, height, isSelected }: {
+  element: any;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  isSelected: boolean;
+}) {
+  const [naturalDimensions, setNaturalDimensions] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    const img = new window.Image();
+    img.onload = () => {
+      setNaturalDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.src = element.src;
+  }, [element.src]);
+
+  // Use natural dimensions if available, otherwise fall back to element dimensions
+  const naturalWidth = naturalDimensions?.width ?? element.width;
+  const naturalHeight = naturalDimensions?.height ?? element.height;
+
+  const cropX = (element as any).cropX ?? 0;
+  const cropY = (element as any).cropY ?? 0;
+  const cropWidth = Math.max(1, (element as any).cropWidth ?? naturalWidth);
+  const cropHeight = Math.max(1, (element as any).cropHeight ?? naturalHeight);
+
+  // Calculate scale to show only the cropped portion
+  const scaleX = naturalWidth / cropWidth;
+  const scaleY = naturalHeight / cropHeight;
+
+  // Calculate pixel offset in natural image space
+  // The transform applies translate first, then scale, so we work in natural pixel coordinates
+  // We need to shift by cropX/cropY in natural space, then scale to fit the display
+  const offsetX = -(cropX * width / naturalWidth);
+  const offsetY = -(cropY * height / naturalHeight);
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: `${left}px`,
+        top: `${top}px`,
+        width: `${width}px`,
+        height: `${height}px`,
+        transform: `rotate(${element.rotation}deg)`,
+        transformOrigin: 'center center',
+        opacity: isSelected ? element.opacity * 0.05 : element.opacity,
+        pointerEvents: 'none',
+        overflow: 'hidden'
+      }}
+    >
+      <img
+        src={element.src}
+        alt=""
+        className="gif-overlay"
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'none',
+          transformOrigin: 'top left',
+          transform: `translate(${offsetX}px, ${offsetY}px) scale(${scaleX}, ${scaleY})`
+        }}
+      />
+    </div>
+  );
+}
+
 // Component for rendering images with proper loading state
 function KonvaImageElement({ element, handleElementChange, setSelectedElement, isSelected, setShowGrid, onImageReady }: {
   element: any;
@@ -43,6 +112,12 @@ function KonvaImageElement({ element, handleElementChange, setSelectedElement, i
     ? (isSelected ? 0.8 : 0.01)
     : element.opacity;
 
+  // Calculate crop parameters - default to full image if not set
+  const cropX = element.cropX ?? 0;
+  const cropY = element.cropY ?? 0;
+  const cropWidth = element.cropWidth ?? imageElement.width;
+  const cropHeight = element.cropHeight ?? imageElement.height;
+
   return (
     <Image
       key={element.id}
@@ -53,6 +128,7 @@ function KonvaImageElement({ element, handleElementChange, setSelectedElement, i
       y={element.y - element.height / 2}
       width={element.width}
       height={element.height}
+      crop={{ x: cropX, y: cropY, width: cropWidth, height: cropHeight }}
       opacity={konvaOpacity}
       rotation={element.rotation}
       draggable
@@ -903,22 +979,14 @@ export default function StageCanvas() {
                 const isSelected = selectedElementId === element.id;
                 
                 return (
-                  <img
+                  <GifOverlay
                     key={`gif-${element.id}`}
-                    src={element.src}
-                    alt=""
-                    className="gif-overlay"
-                    style={{
-                      position: 'absolute',
-                      left: `${left}px`,
-                      top: `${top}px`,
-                      width: `${width}px`,
-                      height: `${height}px`,
-                      transform: `rotate(${element.rotation}deg)`,
-                      transformOrigin: 'center center',
-                      opacity: isSelected ? element.opacity * 0.05 : element.opacity,
-                      pointerEvents: 'none'
-                    }}
+                    element={element}
+                    left={left}
+                    top={top}
+                    width={width}
+                    height={height}
+                    isSelected={isSelected}
                   />
                 );
               })}
