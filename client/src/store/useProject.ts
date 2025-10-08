@@ -15,6 +15,7 @@ interface ProjectState {
   
   // UI state
   activePropertiesTab: string;
+  activeCropElementId: string | null;
   
   // Zoom state
   zoomLevel: number;
@@ -52,6 +53,7 @@ interface ProjectState {
   
   // UI controls
   setActivePropertiesTab: (tab: string) => void;
+  setActiveCropElement: (elementId: string | null) => void;
   
   // Zoom controls
   setZoom: (zoom: number) => void;
@@ -169,6 +171,7 @@ export const useProject = create<ProjectState>()(
       
       // Default UI state
       activePropertiesTab: 'properties',
+      activeCropElementId: null,
       
       // Default zoom state
       zoomLevel: 1.0, // 100%
@@ -508,6 +511,10 @@ export const useProject = create<ProjectState>()(
       // UI controls
       setActivePropertiesTab: (tab: string) => {
         set({ activePropertiesTab: tab });
+      },
+
+      setActiveCropElement: (elementId: string | null) => {
+        set({ activeCropElementId: elementId });
       },
 
       // Zoom controls
