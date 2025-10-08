@@ -49,6 +49,12 @@ Preferred communication style: Simple, everyday language.
 - **Image Elements**: File upload with resize and corner radius support
 - **Icon Elements**: Lucide icon library with size and color customization
 - **Layer Management**: Z-index controls and element reordering
+- **Image Transformer System**: Event-driven attachment using Set-based readiness tracking
+  - `imageReadyIds` Set tracks which images have finished loading
+  - `KonvaImageElement` calls `onImageReady(elementId)` when image loads
+  - Transformer effect depends on `imageReadyIds` to retrigger attachment
+  - Ensures images are immediately movable/resizable after upload without scene switching
+  - Handles async loading, cached images, and multiple simultaneous uploads correctly
 
 ### Brand Import System
 - **Web Scraping**: Playwright-based extraction of theme colors, CSS variables, and font information
